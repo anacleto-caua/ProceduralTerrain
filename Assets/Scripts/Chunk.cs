@@ -1,31 +1,40 @@
 using UnityEngine;
 
-public class Chunk
+public class Chunk : MonoBehaviour
 {
-    Vector2Int pos;
+    private const float UNITY_DEFAULT_PLANE_SCALE = 10f;
 
-    GameObject redSphere;
+    public GameObject plane;
+    
+
+    private Vector2Int pos;
+
+    private GameObject redSphere;
 
     private int CHUNK_SIZE = 50;
 
-    public Chunk(Vector2Int pos, int chunkSize)
+    public void CreateChunk(Vector2Int pos, int chunkSize)
     {
         this.pos = pos;
         this.CHUNK_SIZE = chunkSize;
+
+        this.gameObject.name = "Chunk-" + pos.x + "-" + pos.y;
+        this.plane.transform.localScale = Vector3.one * CHUNK_SIZE / UNITY_DEFAULT_PLANE_SCALE;
+        //SpawnRedSphere();
     }
 
     public void GenerateChunk()
     {
-        SpawnRedSphere();
+
     }
 
     public void Load()
     {
-        this.redSphere.SetActive(true);
+        this.gameObject.SetActive(true);
     }
     public void Unload()
     {
-        this.redSphere.SetActive(false);
+        this.gameObject.SetActive(false);
     }
 
     public void SpawnRedSphere()

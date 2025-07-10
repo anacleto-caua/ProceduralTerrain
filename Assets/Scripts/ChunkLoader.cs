@@ -5,6 +5,9 @@ public class ChunkLoader : MonoBehaviour
 {
     public Transform playerTransform;
 
+    public GameObject chunkPrefab;
+
+
     private const int CHUNK_SIZE = 50;
      
     private int chunkRenderRadius = 8;
@@ -42,7 +45,7 @@ public class ChunkLoader : MonoBehaviour
                 }
             }
         }
-        // For now every chunk is just stored at loadedChunks, eventually I gotta implement the unload chunks stuff
+        // For now every chunk is just stored at loadedChunks, eventually I gotta implement the unload chunks funcionality
     }
 
     void LoadChunk(Vector2Int pos)
@@ -56,8 +59,17 @@ public class ChunkLoader : MonoBehaviour
 
     void GenerateChunk(Vector2Int pos)
     {
-        Chunk chunk = new Chunk(pos, CHUNK_SIZE);
-        chunk.GenerateChunk();
-        existingChunks.Add(pos, chunk);
+        // Instantiate the Chunk Prefab
+        GameObject newChunk = Instantiate(chunkPrefab, new Vector3(pos.x * CHUNK_SIZE, 0, pos.y * CHUNK_SIZE), Quaternion.identity);
+
+        if (!newChunk.TryGetComponent<Chunk>(out var chunkScript)) {
+            Debug.Log("Chunk Script not found at prefab, creation script broken.");
+            return;
+        }
+
+        chunkScript.CreateChunk(pos, CHUNK_SIZE);
+        chunkScript.GenerateChunk();
+
+        existingChunks.Add(pos, chunkScript);
     }
 }
