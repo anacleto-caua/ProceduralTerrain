@@ -64,7 +64,7 @@ public class Chunk : MonoBehaviour
         for (int i = 0; i < this.heightmapResolution; i++) {
             for (int j = 0; j < this.heightmapResolution; j++)
             {
-                heights[i,j] = (noise.GetNoise(
+                heights[j,i] = (noise.GetNoise(
                        (this.gridPos.x * this.heightmapResolution) + i,
                        (this.gridPos.y * this.heightmapResolution) + j
                    )
