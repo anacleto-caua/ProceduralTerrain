@@ -6,8 +6,8 @@ public class Chunk : MonoBehaviour
 {
     public GameObject debugSpherePrefab;
     public Terrain terrain;
+    public TerrainData terrainTemplate;
 
-    private const float UNITY_DEFAULT_TERRAIN_SCALE = 100f;
     private Color defaultDebugColor = Color.cyan;
     
     private int chunkSize = 0;
@@ -17,8 +17,6 @@ public class Chunk : MonoBehaviour
 
     private Vector2Int gridPos;
     private Vector3 basePos;
-    private float spaceBetweenGridDots = 0;
-    
 
     public void CreateChunk(Vector2Int pos, int chunkSize, int heightmapResolution, int seed)
     {
@@ -27,18 +25,19 @@ public class Chunk : MonoBehaviour
         this.heightmapResolution = heightmapResolution;
         this.seed = seed;
 
-        this.spaceBetweenGridDots = (float)(
-            (float)(this.chunkSize) / ((float)(heightmapResolution))
-            );
-
         // This calculates the "0 0 position" for the chunk, since its placed by the center
         this.basePos = this.transform.position;
         this.basePos.x -= this.chunkSize / 2;
         this.basePos.z -= this.chunkSize / 2;
         CreateDebugSphere(basePos);
 
-        // Setting terrain data
+        // Creating the terrain
+        TerrainData clonedData = Instantiate(terrainTemplate);
+        
+        Terrain.CreateTerrainGameObject(clonedData).TryGetComponent<Terrain>(out this.terrain);
+        this.terrain.name = terrainTemplate.name + " (Clone)";
         this.terrain.gameObject.transform.position = this.basePos;
+
         this.terrain.terrainData.size = Vector3.one * this.chunkSize;
         this.terrain.terrainData.heightmapResolution = this.heightmapResolution;
 
@@ -47,22 +46,22 @@ public class Chunk : MonoBehaviour
 
     public void GenerateChunk()
     {
-        AnaLogger.Log("Generating chunk : " + gridPos);
-        
         FastNoiseLite noise = new FastNoiseLite();
-        noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
         noise.SetSeed(this.seed);
+        noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        noise.SetFrequency(0.010f);
 
-        int index = 0;
-        Vector3 vertexPos = Vector3.zero;
-        Vector3 rawVertexPos = Vector3.zero;
+        noise.SetFractalType(FastNoiseLite.FractalType.FBm);
+        noise.SetFractalOctaves(3);
+        noise.SetFractalLacunarity(2.0f);
+        noise.SetFractalGain(0.5f);
+        noise.SetFractalWeightedStrength(0);
+        noise.SetFractalPingPongStrength(2.0f);
+
 
         // Vertices ordered for mesh creation
-        Vector3[] vertices = new Vector3[this.heightmapResolution * this.heightmapResolution];
         float[,] heights = new float[this.heightmapResolution,this.heightmapResolution];
         for (int i = 0; i < this.heightmapResolution; i++) {
-            rawVertexPos.x = this.spaceBetweenGridDots * i;
-
             for (int j = 0; j < this.heightmapResolution; j++)
             {
                 heights[i,j] = (noise.GetNoise(
@@ -72,31 +71,9 @@ public class Chunk : MonoBehaviour
                    + 1) // Noise goes from 1 to -1, so sum one and it wont go "underground"
                    //* PROCEDURAL_AMPLITUTE
                    ;
-
-                continue;
-                rawVertexPos.z = this.spaceBetweenGridDots * j;
-                rawVertexPos.y =
-                   (noise.GetNoise(
-                       (this.gridPos.x * this.heightmapResolution) + i,
-                       (this.gridPos.y * this.heightmapResolution) + j
-                   )
-                   + 1) // Noise goes from 1 to -1, so sum one and it wont go "underground"
-                   * PROCEDURAL_AMPLITUTE;
-
-
-
-                // Using the edge position
-                vertices[index] = vertexPos;
-                index++;
-
-                Vector3 debugSpherePos = rawVertexPos;
-                debugSpherePos.x += this.basePos.x;
-                debugSpherePos.z += this.basePos.z;
-                //CreateDebugSphere(debugSpherePos, Color.blue, .5f, "_debug_sphere_" +  i + "_" + j);
             }
         }
 
-        //AnaLogger.Log(vertices);
         SetHeights(heights);
     } 
 
