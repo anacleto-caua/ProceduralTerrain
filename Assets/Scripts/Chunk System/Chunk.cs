@@ -68,8 +68,8 @@ public class Chunk : MonoBehaviour
                        (this.gridPos.x * this.heightmapResolution) + i,
                        (this.gridPos.y * this.heightmapResolution) + j
                    )
-                   + 1) // Noise goes from 1 to -1, so sum one and it wont go "underground"
-                   //* PROCEDURAL_AMPLITUTE
+                   + 1f) // Noise goes from 1 to -1, so sum one and it wont go under and over unity terrain object limitations ( under 0 and over +1 )
+                   / 2.0f
                    ;
             }
         }
