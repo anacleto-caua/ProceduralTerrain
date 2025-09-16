@@ -5,28 +5,31 @@ using UnityEngine;
 public class Chunk : MonoBehaviour
 {
     public GameObject debugSpherePrefab;
+    public Terrain terrain;
 
-    private const float UNITY_DEFAULT_PLANE_SCALE = 10f;
+    private const float UNITY_DEFAULT_TERRAIN_SCALE = 100f;
     private Color defaultDebugColor = Color.cyan;
     
     private int chunkSize = 0;
     private const float PROCEDURAL_AMPLITUTE = 10f;
-    private int gridResolution = 10;
+    private int heightmapResolution = 10;
     private int seed = 0;
 
     private Vector2Int gridPos;
     private Vector3 basePos;
-    private int spaceBetweenGridDots = 0;
-    private MeshFilter meshFilter;
+    private float spaceBetweenGridDots = 0;
+    
 
-    public void CreateChunk(Vector2Int pos, int chunkSize, int gridResolution, int seed)
+    public void CreateChunk(Vector2Int pos, int chunkSize, int heightmapResolution, int seed)
     {
         this.gridPos = pos;
         this.chunkSize = chunkSize;
-        this.gridResolution = gridResolution;
+        this.heightmapResolution = heightmapResolution;
         this.seed = seed;
 
-        this.spaceBetweenGridDots = this.chunkSize / (gridResolution - 1);
+        this.spaceBetweenGridDots = (float)(
+            (float)(this.chunkSize) / ((float)(heightmapResolution))
+            );
 
         // This calculates the "0 0 position" for the chunk, since its placed by the center
         this.basePos = this.transform.position;
@@ -34,9 +37,12 @@ public class Chunk : MonoBehaviour
         this.basePos.z -= this.chunkSize / 2;
         CreateDebugSphere(basePos);
 
+        // Setting terrain data
+        this.terrain.gameObject.transform.position = this.basePos;
+        this.terrain.terrainData.size = Vector3.one * this.chunkSize;
+        this.terrain.terrainData.heightmapResolution = this.heightmapResolution;
+
         this.gameObject.name = "Chunk|" + pos.x + "|" + pos.y + "|";
-        
-        this.meshFilter = this.GetComponent<MeshFilter>();
     }
 
     public void GenerateChunk()
@@ -52,89 +58,54 @@ public class Chunk : MonoBehaviour
         Vector3 rawVertexPos = Vector3.zero;
 
         // Vertices ordered for mesh creation
-        Vector3[] vertices = new Vector3[this.gridResolution * this.gridResolution];
-        // Triangles for mesh creation, it consists of 3 index positions on the rawVertices array, in clockwise order
-        List<int> triangles =  new List<int>();
-        // Uv information for mesh creation
-        Vector2[] uvs = new Vector2[this.gridResolution * this.gridResolution];
-
-        for (int i = 0; i < this.gridResolution; i++) {
-            vertexPos.x = this.basePos.x + this.spaceBetweenGridDots * i;
+        Vector3[] vertices = new Vector3[this.heightmapResolution * this.heightmapResolution];
+        float[,] heights = new float[this.heightmapResolution,this.heightmapResolution];
+        for (int i = 0; i < this.heightmapResolution; i++) {
             rawVertexPos.x = this.spaceBetweenGridDots * i;
 
-            for (int j = 0; j < this.gridResolution; j++)
+            for (int j = 0; j < this.heightmapResolution; j++)
             {
+                heights[i,j] = (noise.GetNoise(
+                       (this.gridPos.x * this.heightmapResolution) + i,
+                       (this.gridPos.y * this.heightmapResolution) + j
+                   )
+                   + 1) // Noise goes from 1 to -1, so sum one and it wont go "underground"
+                   //* PROCEDURAL_AMPLITUTE
+                   ;
 
-                // Filling in triangles for mesh creation
-                if (
-                    (j % 2 == 0)
-                    && (j < this.gridResolution - 1) // There will be another position to the right
-                    && (i < this.gridResolution - 1) // There will be another position to the south
-                    )
-                {
-                    triangles.Add(index);
-                    triangles.Add(index + 1);
-                    triangles.Add(index + this.gridResolution);
-                }
-                else if (
-                    (j % 2 != 0)
-                    && (i < this.gridResolution - 1) // There will be another position to the south
-                    )
-                {
-                    triangles.Add(index + this.gridResolution -1);
-                    triangles.Add(index);
-                    triangles.Add(index + this.gridResolution);
-                }
-
-                // Filling in uv data
-                uvs[index] = new Vector2(i, j);
-
-                // TODO: DEFINE I'M USING vertexPos or rawVertexPos
-                
-                // Creating the edge position on the mesh
-                vertexPos.z = this.basePos.z + this.spaceBetweenGridDots * j;
-                vertexPos.y =
-                    (noise.GetNoise(
-                        (this.gridPos.x * this.gridResolution) + i,
-                        (this.gridPos.y * this.gridResolution) + j
-                    )
-                    + 1) // Noise goes from 1 to -1, so sum one and it wont go "underground"
-                    * PROCEDURAL_AMPLITUTE;
-
+                continue;
                 rawVertexPos.z = this.spaceBetweenGridDots * j;
                 rawVertexPos.y =
                    (noise.GetNoise(
-                       (this.gridPos.x * this.gridResolution) + i,
-                       (this.gridPos.y * this.gridResolution) + j
+                       (this.gridPos.x * this.heightmapResolution) + i,
+                       (this.gridPos.y * this.heightmapResolution) + j
                    )
                    + 1) // Noise goes from 1 to -1, so sum one and it wont go "underground"
                    * PROCEDURAL_AMPLITUTE;
 
+
+
                 // Using the edge position
                 vertices[index] = vertexPos;
                 index++;
-                CreateDebugSphere(rawVertexPos, Color.blue, .5f, "_debug_sphere_" +  i + "_" + j);
+
+                Vector3 debugSpherePos = rawVertexPos;
+                debugSpherePos.x += this.basePos.x;
+                debugSpherePos.z += this.basePos.z;
+                //CreateDebugSphere(debugSpherePos, Color.blue, .5f, "_debug_sphere_" +  i + "_" + j);
             }
         }
 
-        AnaLogger.Log(triangles);
-        AnaLogger.Log(vertices);
-        //CreateMesh(vertices, triangles.ToArray(), uvs);
-    }
+        //AnaLogger.Log(vertices);
+        SetHeights(heights);
+    } 
 
-    public void CreateMesh(Vector3[] vertices, int[] triangles, Vector2[] uvs, string name = "new mesh")
+    public void SetHeights(float[,] heights)
     {
-        Mesh mesh = new Mesh();
-        mesh.name = name;
-        mesh.vertices = vertices;
-        mesh.triangles = triangles;
-        mesh.uv = uvs;
-
-        mesh.RecalculateNormals();
-
-        this.meshFilter.mesh = mesh;
-
-        this.meshFilter.transform.position = new Vector3(0, 0, 0);
+        for (int i = 0; i < heights.Length; i++)
+        {
+            terrain.terrainData.SetHeights(0, 0, heights);
+        }
     }
 
     public void CreateDebugSphere(Vector3 pos)
@@ -154,12 +125,6 @@ public class Chunk : MonoBehaviour
         Renderer sphereRenderer = sphere.GetComponent<Renderer>();
         sphereRenderer.sharedMaterial.color = color;
     }
-
-    void Log()
-    {
-        Debug.Log("Chunk-" + "x: " + gridPos.x + " y: " + gridPos.y);
-    }
-
     public void Load()
     {
         this.gameObject.SetActive(true);

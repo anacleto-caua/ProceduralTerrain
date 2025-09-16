@@ -469,10 +469,10 @@ MonoBehaviour:
   existingChunks: {fileID: 11400000, guid: 030b0dbe58c4c604083555d40bc0e93c, type: 2}
   playerTransform: {fileID: 1161348946}
   chunkPrefab: {fileID: 6894149113295749459, guid: 17ddc65dbbf386b49ab607fcfffb642b, type: 3}
-  chunkSize: 100
   chunkRenderRadius: 1
-  gridResolution: 10
   seed: 0
+  chunkSize: 150
+  heightmapResolution: 65
 --- !u!135 &1161348948
 SphereCollider:
   m_ObjectHideFlags: 0

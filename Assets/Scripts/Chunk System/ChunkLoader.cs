@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
+using System.Linq;
 
 public class ChunkLoader : MonoBehaviour
 {
@@ -14,10 +15,14 @@ public class ChunkLoader : MonoBehaviour
     public GameObject chunkPrefab;
 
     [InspectorLabel("Chunk Configs")]
-    public int chunkSize = 50;
     public int chunkRenderRadius = 1;
-    public int gridResolution = 10;
     public int seed = 0;
+    public int chunkSize = 50;
+    [Tooltip("Resolution will be clamped to the nearest valid value.")]
+    public int heightmapResolution = 513;
+    private readonly List<int> validResolutions = new List<int>
+        { 33, 65, 129, 257, 513, 1025, 2049, 4097 };
+
 
     private void Awake()
     {
@@ -82,7 +87,7 @@ public class ChunkLoader : MonoBehaviour
             return;
         }
 
-        chunkScript.CreateChunk(pos, chunkSize, gridResolution, seed);
+        chunkScript.CreateChunk(pos, chunkSize, heightmapResolution, seed);
         chunkScript.GenerateChunk();
 
         // What about chunk position???
@@ -94,6 +99,17 @@ public class ChunkLoader : MonoBehaviour
     {
         existingChunks.DestroyList();
         loadedChunks.DestroyList();
+    }
+
+
+    // This function is called in the editor when the script is loaded or a value is changed in the Inspector.
+    private void OnValidate()
+    {
+        // Find the closest value in our list to the one entered in the inspector.
+        int closest = validResolutions.OrderBy(item => Mathf.Abs(heightmapResolution - item)).First();
+
+        // Snap the resolution to that closest valid value.
+        heightmapResolution = closest;
     }
 
 }
