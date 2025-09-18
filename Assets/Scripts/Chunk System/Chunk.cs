@@ -80,18 +80,16 @@ public class Chunk : MonoBehaviour
         startY = this.gridPos.y * this.heightmapResolution;
         endY = startY + this.heightmapResolution;
 
-        Debug.Log("Chunk: " + this.gridPos);
-        Debug.Log("StartX: " + startX + "_ EndX: " + endX);
-        Debug.Log("StartY: " + startY + "_ EndY: " + endY);
-
         // Vertices ordered for mesh creation
         float[,] heights = new float[this.heightmapResolution, this.heightmapResolution];
         float[,] heightsForTheTerrainData = new float[this.heightmapResolution, this.heightmapResolution];
-        for (int i = 0; i < this.heightmapResolution; i++) {
-            u_x = startX + i;
+        for (int i = 0; i < this.heightmapResolution; i++)
+        {
+            u_x = startX + i - this.gridPos.x;
+            
             for (int j = 0; j < this.heightmapResolution; j++)
             {
-                u_y = startY + j;
+                u_y = startY + j - this.gridPos.y;
 
                 heights[i,j] = (noise.GetNoise(u_x, u_y)
                    + 1f) // Noise goes from 1 to -1, so sum one and it wont go under and over unity terrain object limitations ( under 0 and over +1 )
@@ -105,7 +103,7 @@ public class Chunk : MonoBehaviour
                 CreateDebugSphere(vertexPos, Color.hotPink, 0.5f, "sph_u_grid:" + u_x + "__"+ u_y + "_[" + i + "," + j + "]");
                 vertexPos = this.basePos;
 
-                heightsForTheTerrainData[j, i] = heights[i,j];
+                heightsForTheTerrainData[j, i] = heights[i, j]; 
             }
         }
 
