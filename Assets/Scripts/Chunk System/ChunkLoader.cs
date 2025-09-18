@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 public class ChunkLoader : MonoBehaviour
 {
@@ -18,8 +20,13 @@ public class ChunkLoader : MonoBehaviour
     public int chunkRenderRadius = 1;
     public int seed = 0;
     public int chunkSize = 50;
+    
     [Tooltip("Resolution will be clamped to the nearest valid value.")]
     public int heightmapResolution = 513;
+
+    [Tooltip("This defines the difference between the lower and hightest part of the terrain, keep between 0 and 1.")]
+    public float terrainAmplitude = 1f;
+
     private readonly List<int> validResolutions = new List<int>
         { 33, 65, 129, 257, 513, 1025, 2049, 4097 };
 
@@ -87,11 +94,7 @@ public class ChunkLoader : MonoBehaviour
             return;
         }
 
-        chunkScript.CreateChunk(pos, chunkSize, heightmapResolution, seed);
-        chunkScript.GenerateChunk();
-
-        // What about chunk position???
-
+        chunkScript.CreateChunk(pos, chunkSize, heightmapResolution, seed, terrainAmplitude);
         existingChunks.Add(pos, chunkScript);
     }
 
@@ -110,6 +113,16 @@ public class ChunkLoader : MonoBehaviour
 
         // Snap the resolution to that closest valid value.
         heightmapResolution = closest;
+
+        // Keep amplitude between 0 and 1
+        if (terrainAmplitude <= 0)
+        {
+            terrainAmplitude = 0;
+        }
+        else if (terrainAmplitude > 1)
+        {
+            terrainAmplitude = 1;
+        }
     }
 
     public void OnEnable()

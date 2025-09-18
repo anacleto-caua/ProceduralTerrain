@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using System.Xml.Serialization;
+using Unity.Mathematics;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -8,56 +10,75 @@ public class Chunk : MonoBehaviour
     public GameObject debugSpherePrefab;
     public Terrain terrain;
     public TerrainData terrainTemplate;
-    private const float DEFAULT_UNITY_TERRAIN_HEIGHT_SCALE = 10f;
 
     private int chunkSize = 0;
-    private const float PROCEDURAL_AMPLITUTE = 100f;
     private int heightmapResolution = 10;
     private int seed = 0;
+    public float terrainAmplitude;
+    
     private float spaceBetweenGridVertexes;
 
     private Vector2Int gridPos;
     private Vector3 basePos;
 
-    public void CreateChunk(Vector2Int pos, int chunkSize, int heightmapResolution, int seed)
+    private float[,] heightmap;
+    FastNoiseLite noise;
+
+    // False to break the terrain generation process in steps
+    private bool canGenerateTerrain = false;
+    private bool isHeightmapFilled = false;
+
+    public void Update()
+    {
+        // Looks terrible, but it's just to ensure both functions run only once
+        if (canGenerateTerrain) 
+        {
+            FillTerrainWrapper();
+        }else if (isHeightmapFilled)
+        {
+            SetTerrainHeights();
+            isHeightmapFilled = false;
+        }
+
+    }
+
+    // This function should run at the start of every Chunk life spam
+    public void CreateChunk(Vector2Int pos, int chunkSize, int heightmapResolution, int seed, float terrainAmplitute)
     {
         this.gridPos = pos;
         this.chunkSize = chunkSize;
         this.heightmapResolution = heightmapResolution;
         this.seed = seed;
+        this.terrainAmplitude = terrainAmplitute;
 
         // This calculates the "0 0 position" for the chunk, since its placed by the center
         this.basePos = this.transform.position;
         this.basePos.x -= (float)this.chunkSize / 2f;
         this.basePos.z -= (float)this.chunkSize / 2f;
 
+        this.heightmap = new float[this.heightmapResolution, this.heightmapResolution];
+
+        this.spaceBetweenGridVertexes = (float)((float)(this.chunkSize) / (float)(this.heightmapResolution));
+
+
         // Debug Spheres for visualizing the chunk position
         CreateDebugSphere(this.transform.position, Color.red, 1f, "MIDDLE DEBUG SPHERE");
         CreateDebugSphere(basePos, Color.blue, 2f, "CORNER DEBUG SPHERE");
 
-        this.spaceBetweenGridVertexes = (float)((float)(this.chunkSize) / (float)(this.heightmapResolution));
 
-        CreateTerrainData();
-
+        CreateNoiseInstance();
+        CreateTerrainInstance();
+        
+        // Gives a unique name so we now what's this about
         this.gameObject.name = "Chunk|" + pos.x + "|" + pos.y + "|";
+
+        canGenerateTerrain = true; // Allow the code to proceed and generate the terrain at the update function
     }
 
-    private void CreateTerrainData()
+    private void CreateNoiseInstance()
     {
-        // Creating the terrain
-        TerrainData clonedData = Instantiate(terrainTemplate);
-
-        Terrain.CreateTerrainGameObject(clonedData).TryGetComponent<Terrain>(out this.terrain);
-        this.terrain.name = terrainTemplate.name + " (Clone)";
-        this.terrain.gameObject.transform.position = this.basePos;
-
-        this.terrain.terrainData.size = Vector3.one * this.chunkSize;
-        this.terrain.terrainData.heightmapResolution = this.heightmapResolution;
-    }
-
-    public void GenerateChunk()
-    {
-        FastNoiseLite noise = new FastNoiseLite();
+        // Creates the noise instance
+        this.noise = new FastNoiseLite();
         noise.SetSeed(this.seed);
         noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
         noise.SetFrequency(0.010f);
@@ -68,53 +89,77 @@ public class Chunk : MonoBehaviour
         noise.SetFractalGain(0.5f);
         noise.SetFractalWeightedStrength(0);
         noise.SetFractalPingPongStrength(2.0f);
+    }
 
-        Vector3 vertexPos = this.basePos;
+    private void CreateTerrainInstance()
+    {
+        // Creating the terrain
+        TerrainData clonedData = Instantiate(terrainTemplate);
+
+        Terrain.CreateTerrainGameObject(clonedData).TryGetComponent<Terrain>(out this.terrain);
+        this.terrain.name = terrainTemplate.name + " (Clone)";
+        this.terrain.gameObject.transform.position = this.basePos;
+
+        this.terrain.terrainData.size = Vector3.one * this.chunkSize;
+        this.terrain.terrainData.heightmapResolution = this.heightmapResolution;
+
+        this.terrain.transform.parent = this.gameObject.transform;
+    }
+
+    private async void FillTerrainWrapper()
+    {
+        canGenerateTerrain = false;
+        await Task.Run(() => { FillTerrainHeightData(); });
+        isHeightmapFilled = true;
+    }
+
+    private void FillTerrainHeightData()
+    {
         // The universal coordinates for the noise function
         int u_x, u_y = 0;
-        int startX, startY, endX, endY;
 
-        startX = this.gridPos.x * this.heightmapResolution;
-        endX = startX + this.heightmapResolution;
-
-        startY = this.gridPos.y * this.heightmapResolution;
-        endY = startY + this.heightmapResolution;
-
-        // Vertices ordered for mesh creation
-        float[,] heights = new float[this.heightmapResolution, this.heightmapResolution];
-        float[,] heightsForTheTerrainData = new float[this.heightmapResolution, this.heightmapResolution];
         for (int i = 0; i < this.heightmapResolution; i++)
         {
-            u_x = startX + i - this.gridPos.x;
-            
+            u_x = (this.gridPos.x * this.heightmapResolution) + i - this.gridPos.x;
+
             for (int j = 0; j < this.heightmapResolution; j++)
             {
-                u_y = startY + j - this.gridPos.y;
+                u_y = (this.gridPos.y * this.heightmapResolution) + j - this.gridPos.y;
 
-                heights[i,j] = (noise.GetNoise(u_x, u_y)
-                   + 1f) // Noise goes from 1 to -1, so sum one and it wont go under and over unity terrain object limitations ( under 0 and over +1 )
-                   / 2.0f / DEFAULT_UNITY_TERRAIN_HEIGHT_SCALE // The unity terrain scale is too dramatic
-                   ;
-
-                vertexPos.x += i * this.spaceBetweenGridVertexes;
-                vertexPos.z += j * this.spaceBetweenGridVertexes;
-                vertexPos.y = heights[i,j] * PROCEDURAL_AMPLITUTE;
-
-                CreateDebugSphere(vertexPos, Color.hotPink, 0.5f, "sph_u_grid:" + u_x + "__"+ u_y + "_[" + i + "," + j + "]");
-                vertexPos = this.basePos;
-
-                heightsForTheTerrainData[j, i] = heights[i, j]; 
+                heightmap[j, i] = (
+                    (
+                        noise.GetNoise(u_x, u_y)
+                        + 1f) / 2.0f // Noise goes from 1 to -1 Unity's terrain need it between 0 and 1
+                    )
+                        * terrainAmplitude; // The Unity's terrain scale is too dramatic
             }
         }
+    }
 
-        SetHeights(heightsForTheTerrainData);
-    } 
-
-    public void SetHeights(float[,] heights)
+    public void SetTerrainHeights()
     {
-        for (int i = 0; i < heights.Length; i++)
+        terrain.terrainData.SetHeights(0, 0, heightmap);
+    }
+
+    public void CreateTerrainDebugSpheres()
+    {
+        int u_x, u_y = 0;
+
+        for (int i = 0; i < this.heightmapResolution; i++)
         {
-            terrain.terrainData.SetHeights(0, 0, heights);
+            u_x = (this.gridPos.x * this.heightmapResolution) + i - this.gridPos.x;
+
+            for (int j = 0; j < this.heightmapResolution; j++)
+            {
+                u_y = (this.gridPos.y * this.heightmapResolution) + j - this.gridPos.y;
+
+                Vector3 vertexPos = this.basePos;
+                vertexPos.x += j * this.spaceBetweenGridVertexes;
+                vertexPos.z += i * this.spaceBetweenGridVertexes;
+                vertexPos.y = heightmap[i, j] * terrainAmplitude;
+
+                CreateDebugSphere(vertexPos, Color.hotPink, 0.5f, "sph_u_grid:" + u_x + "__" + u_y + "_[" + i + "," + j + "]");
+            }
         }
     }
 
