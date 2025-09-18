@@ -474,6 +474,7 @@ MonoBehaviour:
   chunkSize: 150
   heightmapResolution: 65
   terrainAmplitude: 0.3
+  createDebugSpheres: 0
 --- !u!135 &1161348948
 SphereCollider:
   m_ObjectHideFlags: 0

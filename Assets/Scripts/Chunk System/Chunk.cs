@@ -32,6 +32,10 @@ public class Chunk : MonoBehaviour
     private bool canGenerateTerrain = false;
     private bool isHeightmapFilled = false;
 
+    // Terrain generation steps
+    private bool createDebugSpheres = true;
+
+
     public void Update()
     {
         // Looks terrible, but it's just to ensure both functions run only once
@@ -48,13 +52,19 @@ public class Chunk : MonoBehaviour
     }
 
     // This function should run at the start of every Chunk life spam
-    public void CreateChunk(Vector2Int pos, int chunkSize, int heightmapResolution, int seed, float terrainAmplitute)
+    public void CreateChunk(
+        Vector2Int pos, int chunkSize, 
+        int heightmapResolution, int seed, 
+        float terrainAmplitute, bool createDebugSpheres = true
+        )
     {
         this.gridPos = pos;
         this.chunkSize = chunkSize;
         this.heightmapResolution = heightmapResolution;
         this.seed = seed;
         this.terrainAmplitude = terrainAmplitute;
+
+        this.createDebugSpheres = createDebugSpheres;
 
         // This calculates the "0 0 position" for the chunk, since its placed by the center
         this.basePos = this.transform.position;
@@ -70,14 +80,13 @@ public class Chunk : MonoBehaviour
         CreateDebugSphere(this.transform.position, Color.red, 1f, "MIDDLE DEBUG SPHERE");
         CreateDebugSphere(basePos, Color.blue, 2f, "CORNER DEBUG SPHERE");
 
-
+        // Some functions to reduce bloat
         CreateNoiseInstance();
         CreateTerrainInstance();
         
         // Gives a unique name so we now what's this about
         this.gameObject.name = "Chunk|" + pos.x + "|" + pos.y + "|";
 
-        canGenerateTerrain = true; // Allow the code to proceed and generate the terrain at the update function
     }
 
     private void CreateNoiseInstance()
@@ -109,6 +118,8 @@ public class Chunk : MonoBehaviour
         this.terrain.terrainData.heightmapResolution = this.heightmapResolution;
 
         this.terrain.transform.parent = this.gameObject.transform;
+
+        canGenerateTerrain = true; // Allow the code to proceed and generate the terrain at the update function
     }
 
     private async void FillTerrainWrapper()
@@ -148,6 +159,11 @@ public class Chunk : MonoBehaviour
 
     public void CreateTerrainDebugSpheres()
     {
+        if (!this.createDebugSpheres)
+        {
+            return;
+        }
+
         int u_x, u_y = 0;
 
         for (int i = 0; i < this.heightmapResolution; i++)
