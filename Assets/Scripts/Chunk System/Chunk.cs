@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Xml.Serialization;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -7,13 +8,13 @@ public class Chunk : MonoBehaviour
     public GameObject debugSpherePrefab;
     public Terrain terrain;
     public TerrainData terrainTemplate;
+    private const float DEFAULT_UNITY_TERRAIN_HEIGHT_SCALE = 10f;
 
-    private Color defaultDebugColor = Color.cyan;
-    
     private int chunkSize = 0;
-    private const float PROCEDURAL_AMPLITUTE = 10f;
+    private const float PROCEDURAL_AMPLITUTE = 100f;
     private int heightmapResolution = 10;
     private int seed = 0;
+    private float spaceBetweenGridVertexes;
 
     private Vector2Int gridPos;
     private Vector3 basePos;
@@ -27,21 +28,31 @@ public class Chunk : MonoBehaviour
 
         // This calculates the "0 0 position" for the chunk, since its placed by the center
         this.basePos = this.transform.position;
-        this.basePos.x -= this.chunkSize / 2;
-        this.basePos.z -= this.chunkSize / 2;
-        CreateDebugSphere(basePos);
+        this.basePos.x -= (float)this.chunkSize / 2f;
+        this.basePos.z -= (float)this.chunkSize / 2f;
 
+        // Debug Spheres for visualizing the chunk position
+        CreateDebugSphere(this.transform.position, Color.red, 1f, "MIDDLE DEBUG SPHERE");
+        CreateDebugSphere(basePos, Color.blue, 2f, "CORNER DEBUG SPHERE");
+
+        this.spaceBetweenGridVertexes = (float)((float)(this.chunkSize) / (float)(this.heightmapResolution));
+
+        CreateTerrainData();
+
+        this.gameObject.name = "Chunk|" + pos.x + "|" + pos.y + "|";
+    }
+
+    private void CreateTerrainData()
+    {
         // Creating the terrain
         TerrainData clonedData = Instantiate(terrainTemplate);
-        
+
         Terrain.CreateTerrainGameObject(clonedData).TryGetComponent<Terrain>(out this.terrain);
         this.terrain.name = terrainTemplate.name + " (Clone)";
         this.terrain.gameObject.transform.position = this.basePos;
 
         this.terrain.terrainData.size = Vector3.one * this.chunkSize;
         this.terrain.terrainData.heightmapResolution = this.heightmapResolution;
-
-        this.gameObject.name = "Chunk|" + pos.x + "|" + pos.y + "|";
     }
 
     public void GenerateChunk()
@@ -58,23 +69,47 @@ public class Chunk : MonoBehaviour
         noise.SetFractalWeightedStrength(0);
         noise.SetFractalPingPongStrength(2.0f);
 
+        Vector3 vertexPos = this.basePos;
+        // The universal coordinates for the noise function
+        int u_x, u_y = 0;
+        int startX, startY, endX, endY;
+
+        startX = this.gridPos.x * this.heightmapResolution;
+        endX = startX + this.heightmapResolution;
+
+        startY = this.gridPos.y * this.heightmapResolution;
+        endY = startY + this.heightmapResolution;
+
+        Debug.Log("Chunk: " + this.gridPos);
+        Debug.Log("StartX: " + startX + "_ EndX: " + endX);
+        Debug.Log("StartY: " + startY + "_ EndY: " + endY);
 
         // Vertices ordered for mesh creation
-        float[,] heights = new float[this.heightmapResolution,this.heightmapResolution];
+        float[,] heights = new float[this.heightmapResolution, this.heightmapResolution];
+        float[,] heightsForTheTerrainData = new float[this.heightmapResolution, this.heightmapResolution];
         for (int i = 0; i < this.heightmapResolution; i++) {
+            u_x = startX + i;
             for (int j = 0; j < this.heightmapResolution; j++)
             {
-                heights[j,i] = (noise.GetNoise(
-                       (this.gridPos.x * this.heightmapResolution) + i,
-                       (this.gridPos.y * this.heightmapResolution) + j
-                   )
+                u_y = startY + j;
+
+                heights[i,j] = (noise.GetNoise(u_x, u_y)
                    + 1f) // Noise goes from 1 to -1, so sum one and it wont go under and over unity terrain object limitations ( under 0 and over +1 )
-                   / 2.0f
+                   / 2.0f / DEFAULT_UNITY_TERRAIN_HEIGHT_SCALE // The unity terrain scale is too dramatic
                    ;
+
+                vertexPos.x += i * this.spaceBetweenGridVertexes;
+                vertexPos.z += j * this.spaceBetweenGridVertexes;
+                vertexPos.y = heights[i,j] * PROCEDURAL_AMPLITUTE;
+
+                CreateDebugSphere(vertexPos, Color.hotPink, 0.5f, "sph_u_grid:" + u_x + "__"+ u_y + "_[" + i + "," + j + "]");
+                vertexPos = this.basePos;
+
+                heightsForTheTerrainData[j, i] = heights[i,j];
             }
         }
 
-        SetHeights(heights);
+        SetHeights(heightsForTheTerrainData);
     } 
 
     public void SetHeights(float[,] heights)
@@ -100,7 +135,7 @@ public class Chunk : MonoBehaviour
         sphere.transform.localScale = Vector3.one * scale;
 
         Renderer sphereRenderer = sphere.GetComponent<Renderer>();
-        sphereRenderer.sharedMaterial.color = color;
+        sphereRenderer.material.color = color;
     }
     public void Load()
     {

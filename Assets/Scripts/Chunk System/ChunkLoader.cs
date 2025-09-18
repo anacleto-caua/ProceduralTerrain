@@ -112,4 +112,13 @@ public class ChunkLoader : MonoBehaviour
         heightmapResolution = closest;
     }
 
+    public void OnEnable()
+    {
+        ClearExistingChunks();
+    }
+
+    public void OnDisable()
+    {
+    }
+
 }
