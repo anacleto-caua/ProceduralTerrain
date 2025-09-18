@@ -18,6 +18,10 @@ public class Chunk : MonoBehaviour
     
     private float spaceBetweenGridVertexes;
 
+    // This constant tries to match the terrain amplitude closer to that of Unitys terrain
+    // Only works on amplitude = 0.3 :)
+    private const float TERRAIN_AMPLITUDE_RELATED_TO_DEBUG_SPHERES = 500f;
+
     private Vector2Int gridPos;
     private Vector3 basePos;
 
@@ -36,6 +40,7 @@ public class Chunk : MonoBehaviour
             FillTerrainWrapper();
         }else if (isHeightmapFilled)
         {
+            CreateTerrainDebugSpheres();
             SetTerrainHeights();
             isHeightmapFilled = false;
         }
@@ -156,7 +161,7 @@ public class Chunk : MonoBehaviour
                 Vector3 vertexPos = this.basePos;
                 vertexPos.x += j * this.spaceBetweenGridVertexes;
                 vertexPos.z += i * this.spaceBetweenGridVertexes;
-                vertexPos.y = heightmap[i, j] * terrainAmplitude;
+                vertexPos.y = heightmap[i, j] * terrainAmplitude * TERRAIN_AMPLITUDE_RELATED_TO_DEBUG_SPHERES;
 
                 CreateDebugSphere(vertexPos, Color.hotPink, 0.5f, "sph_u_grid:" + u_x + "__" + u_y + "_[" + i + "," + j + "]");
             }
