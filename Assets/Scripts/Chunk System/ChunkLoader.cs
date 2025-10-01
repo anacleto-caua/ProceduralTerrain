@@ -24,7 +24,7 @@ public class ChunkLoader : MonoBehaviour
     [Tooltip("Resolution will be clamped to the nearest valid value.")]
     public int heightmapResolution = 513;
 
-    [Tooltip("This defines the difference between the lower and hightest part of the terrain, keep between 0 and 1.")]
+    [Tooltip("This defines the difference between the lower and highest part of the terrain, keep between 0 and 1.")]
     public float terrainAmplitude = 1f;
 
     [InspectorLabel("Generation debug options")]
