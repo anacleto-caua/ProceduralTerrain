@@ -10,15 +10,15 @@ public class CameraController : MonoBehaviour
 
     CameraInputActions.CameraActions cameraActions;
 
-    private float cameraSpeed = 5f;
-    private float cameraAcceleration = 2.5f;
+    private float cameraSpeed = 30f;
+    private float cameraAcceleration = 5f;
     private float cameraDeacceleration = .3f;
 
     private float currentCameraSpeed = 0f;
     private Vector3 currentMovement = Vector3.zero;
     private Vector3 currentMoveInput;
 
-    private float cameraRotationSensitivity = 5f;
+    private float cameraRotationSensitivity = 10f;
     private float minPitchAngle = -90f; // Minimum vertical angle (looking down)
     private float maxPitchAngle = 90f;  // Maximum vertical angle (looking up)
 
