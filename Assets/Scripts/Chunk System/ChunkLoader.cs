@@ -32,6 +32,9 @@ public class ChunkLoader : MonoBehaviour
 
 
 
+
+
+
     private readonly List<int> validResolutions = new List<int>
         { 33, 65, 129, 257, 513, 1025, 2049, 4097 };
 
@@ -50,17 +53,24 @@ public class ChunkLoader : MonoBehaviour
     
     void Update()
     {
-        HandleChunkLoading();
+        HandleChunkLoadingAsync();
     }
 
-    public void HandleChunkLoading()
+    public async Task HandleChunkLoadingAsync()
     {
-        Vector2Int currentChunkPos = new Vector2Int(Mathf.RoundToInt(playerTransform.position.x / chunkSize), Mathf.RoundToInt(playerTransform.position.z / chunkSize));
+        // Translate word position to the grid pos position
+        Vector2Int currentChunkPos = new Vector2Int(
+                Mathf.RoundToInt(playerTransform.position.x / chunkSize), 
+                Mathf.RoundToInt(playerTransform.position.z / chunkSize)
+            );
 
+        // Loops through the chunks supposed to be around the player
         for (int x = currentChunkPos.x - chunkRenderRadius; x < currentChunkPos.x + chunkRenderRadius + 1; x++)
         {
             for (int y = currentChunkPos.y - chunkRenderRadius; y < currentChunkPos.y + chunkRenderRadius + 1; y++)
             {
+                // Is this coordinate inside the circle
+                // Consider if removing this if would just make it all better(at least cleaner, but faster?)
                 if (
                     Mathf.Pow((x - currentChunkPos.x), 2) + Mathf.Pow((y - currentChunkPos.y), 2)
                     <= Mathf.Pow(chunkRenderRadius, 2)
@@ -77,16 +87,42 @@ public class ChunkLoader : MonoBehaviour
                 }
             }
         }
-        // For now every chunk is just stored at loadedChunks, eventually I gotta implement the unload chunks functionality
+
+        List<Action> UnloadCommandList = new List<Action>();
+        // Loops at all the chunks loaded and check if they should be loaded on not
+        foreach ( Chunk chunk in loadedChunks )
+        {
+            if (Vector2Int.Distance(chunk.gridPos, currentChunkPos) > chunkRenderRadius)
+            {
+                // Stack a list of actions, as calling the function now would damage the foreach loop
+                UnloadCommandList.Add(() => UnloadChunk(chunk));
+            }
+        }
+
+        // Unstack the actions, seems like bad code...
+        foreach (Action action in UnloadCommandList)
+        {
+            action();
+        }
     }
 
     void LoadChunk(Vector2Int pos)
     {
-        if (!existingChunks.ContainsKey(pos)) {
+        if (!existingChunks.ContainsKey(pos))
+        {
             GenerateChunk(pos);
         }
 
-        loadedChunks.Add(pos, existingChunks.Get(pos));
+        Chunk chunk = existingChunks.Get(pos); 
+        chunk.Load();
+
+        loadedChunks.Add(pos, chunk);
+    }
+
+    void UnloadChunk(Chunk chunk)
+    {
+        loadedChunks.Remove(chunk.gridPos);
+        chunk.Unload();
     }
 
     void GenerateChunk(Vector2Int pos)

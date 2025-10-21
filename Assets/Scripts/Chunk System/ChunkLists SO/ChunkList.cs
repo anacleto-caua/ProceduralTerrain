@@ -1,9 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "ChunkList", menuName = "Scriptable Objects/ChunkList")]
-public class ChunkList : ScriptableObject
+public class ChunkList : ScriptableObject, IEnumerable<Chunk>
 {
     private Dictionary<Vector2Int, Chunk> chunks = new Dictionary<Vector2Int, Chunk>();
 
@@ -26,6 +27,18 @@ public class ChunkList : ScriptableObject
         else
         {
             AnaLogger.Log("Chunk already exists at position: " + pos);
+        }
+    }
+
+    public void Remove(Vector2Int pos)
+    {
+        if (chunks.ContainsKey(pos))
+        {
+            chunks.Remove(pos);
+        }
+        else
+        {
+            AnaLogger.Log("Chunk doesn't exists at position: " + pos);
         }
     }
 
@@ -64,4 +77,16 @@ public class ChunkList : ScriptableObject
         return chunks.TryGetValue(pos, out chunk);
     }
 
+    // IEnumerator utils
+    public IEnumerator<Chunk> GetEnumerator()
+    {
+        // Simply return the enumerator for the dictionary's values
+        return chunks.Values.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        // This just calls the generic version above
+        return GetEnumerator();
+    }
 }

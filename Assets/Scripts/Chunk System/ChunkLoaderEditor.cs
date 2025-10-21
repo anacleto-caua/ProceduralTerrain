@@ -22,7 +22,7 @@ public class ChunkLoaderEditor : Editor
         {
             ChunkLoader.ClearExistingChunks(); // Not very certain about this one
 
-            ChunkLoader.HandleChunkLoading();
+            ChunkLoader.HandleChunkLoadingAsync();
         }
 
         if (GUILayout.Button("Clear Chunks"))

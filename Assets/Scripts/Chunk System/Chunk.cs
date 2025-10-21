@@ -19,11 +19,11 @@ public class Chunk : MonoBehaviour
     
     private float spaceBetweenGridVertexes;
 
-    // This constant tries to match the terrain amplitude closer to that of Unitys terrain
+    // This constant tries to match the terrain amplitude closer to that of Unity's terrain
     // Only works on amplitude = 0.3 :)
     private const float TERRAIN_AMPLITUDE_RELATED_TO_DEBUG_SPHERES = 500f;
 
-    private Vector2Int gridPos;
+    public Vector2Int gridPos;
     private Vector3 basePos;
 
     private float[,] heightmap;
