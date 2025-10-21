@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
+using Unity.Hierarchy;
 using Unity.Mathematics;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -34,6 +35,11 @@ public class Chunk : MonoBehaviour
 
     // Terrain generation steps
     private bool createDebugSpheres = true;
+
+    // Sinks 
+    private Sink[] SinksOnX; 
+    private Sink[] SinksOnZ;
+
 
 
     public void Update()
@@ -87,6 +93,9 @@ public class Chunk : MonoBehaviour
         // Gives a unique name so we now what's this about
         this.gameObject.name = "Chunk|" + pos.x + "|" + pos.y + "|";
 
+        // Sinks ident variables
+        SinksOnX = new Sink[this.heightmapResolution];
+        SinksOnZ = new Sink[this.heightmapResolution];
     }
 
     private void CreateNoiseInstance()
@@ -140,6 +149,12 @@ public class Chunk : MonoBehaviour
 
             for (int j = 0; j < this.heightmapResolution; j++)
             {
+                // Sets the first one as the smallest so we can compare with the ones to come
+                if (j == 0)
+                {
+                    SinksOnZ[i] = new Sink(u_x, u_y, i, j);
+                }
+
                 u_y = (this.gridPos.y * this.heightmapResolution) + j - this.gridPos.y;
 
                 heightmap[j, i] = (
@@ -148,7 +163,25 @@ public class Chunk : MonoBehaviour
                         + 1f) / 2.0f // Noise goes from 1 to -1 Unity's terrain need it between 0 and 1
                     )
                         * terrainAmplitude; // The Unity's terrain scale is too dramatic
+
+                
+                if (heightmap[j,i] < heightmap[SinksOnZ[i].j, SinksOnZ[i].i])
+                {
+                    SinksOnZ[i] = new Sink(u_x, u_y, i, j);
+                }
+
+                if (SinksOnX[j] == null)
+                {
+                    SinksOnX[j] = new Sink(u_x, u_y, i, j);
+                } 
+                else if (heightmap[j, i] < heightmap[SinksOnX[j].j, SinksOnX[j].i])
+                {
+                    SinksOnX[j] = new Sink(u_x, u_y, i, j);
+                }
+
             }
+
+
         }
     }
 
@@ -164,8 +197,11 @@ public class Chunk : MonoBehaviour
             return;
         }
 
+        
         int u_x, u_y = 0;
 
+        Color sphereColor;
+        float sphereScale;
         for (int i = 0; i < this.heightmapResolution; i++)
         {
             u_x = (this.gridPos.x * this.heightmapResolution) + i - this.gridPos.x;
@@ -179,7 +215,33 @@ public class Chunk : MonoBehaviour
                 vertexPos.z += i * this.spaceBetweenGridVertexes;
                 vertexPos.y = heightmap[i, j] * terrainAmplitude * TERRAIN_AMPLITUDE_RELATED_TO_DEBUG_SPHERES;
 
-                CreateDebugSphere(vertexPos, Color.hotPink, 0.5f, "sph_u_grid:" + u_x + "__" + u_y + "_[" + i + "," + j + "]");
+                // Resets the colors for normal points
+                sphereColor = Color.hotPink;
+                sphereScale = 0.5f;
+
+                // --- THOSE COORDINATES ARE A MESS ---
+
+                // Gives a distinct color for the sink points
+                if (SinksOnZ[j].j == i)
+                {
+                    sphereColor = new Color(0, 1, 1);
+                    sphereScale = 1.3f;
+                }
+
+                if (SinksOnX[i].i == j)
+                {
+                    sphereColor = new Color(1, 1, 0);
+                    sphereScale = 1.3f;
+                }
+
+                // That's a "major sink" where this point is the lowest both in the X and Y points
+                if ( ( SinksOnX[i].i == j ) && ( SinksOnZ[j].j == i ) )
+                {
+                    sphereColor = new Color(1, 0, 1);
+                    sphereScale = 1.5f;
+                }
+
+                CreateDebugSphere(vertexPos, sphereColor, sphereScale, "sph_u_grid:" + u_x + "__" + u_y + "_[" + i + "," + j + "]");
             }
         }
     }
