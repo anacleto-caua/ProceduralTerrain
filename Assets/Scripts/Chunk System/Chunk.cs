@@ -19,49 +19,34 @@ public class Chunk : MonoBehaviour
     
     private float spaceBetweenGridVertexes;
 
-    // This constant tries to match the terrain amplitude closer to that of Unity's terrain
-    // Only works on amplitude = 0.3 :)
-    private const float TERRAIN_AMPLITUDE_RELATED_TO_DEBUG_SPHERES = 500f;
-
     public Vector2Int gridPos;
     private Vector3 basePos;
 
     private float[,] heightmap;
     FastNoiseLite noise;
 
-    // False to break the terrain generation process in steps
-    private bool canGenerateTerrain = false;
-    private bool isHeightmapFilled = false;
-
     // Terrain generation steps
-    private bool createDebugSpheres = true;
+    private bool canDrawGizmos = false;
+    private bool shouldDrawGizmos = false;
 
     // Sinks 
     private Sink[] SinksOnX; 
     private Sink[] SinksOnZ;
 
-
+    public void Start()
+    {
+        GenerateChunkTerrain();
+    }
 
     public void Update()
     {
-        // Looks terrible, but it's just to ensure both functions run only once
-        if (canGenerateTerrain) 
-        {
-            FillTerrainWrapper();
-        }else if (isHeightmapFilled)
-        {
-            CreateTerrainDebugSpheres();
-            SetTerrainHeights();
-            isHeightmapFilled = false;
-        }
-
     }
 
     // This function should run at the start of every Chunk life spam
     public void CreateChunk(
         Vector2Int pos, int chunkSize, 
         int heightmapResolution, int seed, 
-        float terrainAmplitute, bool createDebugSpheres = true
+        float terrainAmplitute, bool createDebugSpheres = false
         )
     {
         this.gridPos = pos;
@@ -70,7 +55,7 @@ public class Chunk : MonoBehaviour
         this.seed = seed;
         this.terrainAmplitude = terrainAmplitute;
 
-        this.createDebugSpheres = createDebugSpheres;
+        this.shouldDrawGizmos = createDebugSpheres;
 
         // This calculates the "0 0 position" for the chunk, since its placed by the center
         this.basePos = this.transform.position;
@@ -80,11 +65,6 @@ public class Chunk : MonoBehaviour
         this.heightmap = new float[this.heightmapResolution, this.heightmapResolution];
 
         this.spaceBetweenGridVertexes = (float)((float)(this.chunkSize) / (float)(this.heightmapResolution));
-
-
-        // Debug Spheres for visualizing the chunk position
-        CreateDebugSphere(this.transform.position, Color.red, 1f, "MIDDLE DEBUG SPHERE");
-        CreateDebugSphere(basePos, Color.blue, 2f, "CORNER DEBUG SPHERE");
 
         // Some functions to reduce bloat
         CreateNoiseInstance();
@@ -127,15 +107,12 @@ public class Chunk : MonoBehaviour
         this.terrain.terrainData.heightmapResolution = this.heightmapResolution;
 
         this.terrain.transform.parent = this.gameObject.transform;
-
-        canGenerateTerrain = true; // Allow the code to proceed and generate the terrain at the update function
     }
 
-    private async void FillTerrainWrapper()
+    private async void GenerateChunkTerrain()
     {
-        canGenerateTerrain = false;
         await Task.Run(() => { FillTerrainHeightData(); });
-        isHeightmapFilled = true;
+        SetTerrainHeights();
     }
 
     private void FillTerrainHeightData()
@@ -183,6 +160,11 @@ public class Chunk : MonoBehaviour
 
 
         }
+
+        if (shouldDrawGizmos)
+        {
+            canDrawGizmos = true;
+        }
     }
 
     public void SetTerrainHeights()
@@ -190,79 +172,73 @@ public class Chunk : MonoBehaviour
         terrain.terrainData.SetHeights(0, 0, heightmap);
     }
 
-    public void CreateTerrainDebugSpheres()
+    private void OnDrawGizmos()
     {
-        if (!this.createDebugSpheres)
+        // Check if we should draw gizmos at all - MAY BE UNUSEFULL
+        if (!canDrawGizmos)
         {
             return;
         }
 
-        
-        int u_x, u_y = 0;
+        // Draw the chunk corner/middle markers
+        // Check if basePos has been initialized
+        if (chunkSize > 0)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawSphere(this.transform.position, 1f); // MIDDLE
+            Gizmos.color = Color.blue;
+            Gizmos.DrawSphere(basePos, 2f); // CORNER
+        }
 
+        float terrainActualHeight = terrain.terrainData.size.y;
         Color sphereColor;
-        float sphereScale;
+        float sphereRadius; // Gizmos.DrawSphere uses radius, not scale
+
+        // In this loop: i = row (z-axis), j = column (x-axis)
         for (int i = 0; i < this.heightmapResolution; i++)
         {
-            u_x = (this.gridPos.x * this.heightmapResolution) + i - this.gridPos.x;
-
             for (int j = 0; j < this.heightmapResolution; j++)
             {
-                u_y = (this.gridPos.y * this.heightmapResolution) + j - this.gridPos.y;
-
                 Vector3 vertexPos = this.basePos;
                 vertexPos.x += j * this.spaceBetweenGridVertexes;
                 vertexPos.z += i * this.spaceBetweenGridVertexes;
-                vertexPos.y = heightmap[i, j] * terrainAmplitude * TERRAIN_AMPLITUDE_RELATED_TO_DEBUG_SPHERES;
+
+                // --- CORRECTED Y CALCULATION ---
+                // Your original code multiplied by terrainAmplitude *twice* and used a magic number.
+                // The *actual* world height is base_y + (heightmap_value * terrain_data_height).
+                // We set terrain_data_height to chunkSize in CreateTerrainInstance.
+                vertexPos.y = this.basePos.y + (heightmap[i, j] * terrainActualHeight);
 
                 // Resets the colors for normal points
-                sphereColor = Color.hotPink;
-                sphereScale = 0.5f;
+                sphereColor = Color.magenta; // Color.hotPink doesn't exist, magenta is close
+                sphereRadius = 0.5f;
 
-                // --- THOSE COORDINATES ARE A MESS ---
-
-                // Gives a distinct color for the sink points
                 if (SinksOnZ[j].j == i)
                 {
-                    sphereColor = new Color(0, 1, 1);
-                    sphereScale = 1.3f;
+                    sphereColor = new Color(0, 1, 1); // Cyan
+                    sphereRadius = 1.3f;
                 }
 
                 if (SinksOnX[i].i == j)
                 {
-                    sphereColor = new Color(1, 1, 0);
-                    sphereScale = 1.3f;
+                    sphereColor = new Color(1, 1, 0); // Yellow
+                    sphereRadius = 1.3f;
                 }
 
-                // That's a "major sink" where this point is the lowest both in the X and Y points
-                if ( ( SinksOnX[i].i == j ) && ( SinksOnZ[j].j == i ) )
+                // That's a "major sink" where this point is the lowest both in its X and Z lines
+                if ((SinksOnX[i].i == j) && (SinksOnZ[j].j == i))
                 {
-                    sphereColor = new Color(1, 0, 1);
-                    sphereScale = 1.5f;
+                    sphereColor = new Color(1, 0, 1); // Magenta (overwrites normal)
+                    sphereRadius = 1.5f;
                 }
 
-                CreateDebugSphere(vertexPos, sphereColor, sphereScale, "sph_u_grid:" + u_x + "__" + u_y + "_[" + i + "," + j + "]");
+                Gizmos.color = sphereColor;
+                Gizmos.DrawSphere(vertexPos, sphereRadius);
             }
         }
     }
 
-    public void CreateDebugSphere(Vector3 pos)
-    {
-        CreateDebugSphere(pos, Color.cyan);
-    }
 
-    public void CreateDebugSphere(Vector3 pos, Color color, float scale = 1.0f, string name = "debug_sphere")
-    {
-        GameObject sphere = Instantiate(debugSpherePrefab);
-
-        sphere.transform.parent = this.gameObject.transform;
-        sphere.name = name;
-        sphere.transform.position = pos;
-        sphere.transform.localScale = Vector3.one * scale;
-
-        Renderer sphereRenderer = sphere.GetComponent<Renderer>();
-        sphereRenderer.material.color = color;
-    }
     public void Load()
     {
         this.gameObject.SetActive(true);
