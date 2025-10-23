@@ -192,7 +192,7 @@ public class Chunk : MonoBehaviour
 
         float terrainActualHeight = terrain.terrainData.size.y;
         Color sphereColor;
-        float sphereRadius; // Gizmos.DrawSphere uses radius, not scale
+        float sphereRadius;
 
         // In this loop: i = row (z-axis), j = column (x-axis)
         for (int i = 0; i < this.heightmapResolution; i++)
@@ -203,14 +203,10 @@ public class Chunk : MonoBehaviour
                 vertexPos.x += j * this.spaceBetweenGridVertexes;
                 vertexPos.z += i * this.spaceBetweenGridVertexes;
 
-                // --- CORRECTED Y CALCULATION ---
-                // Your original code multiplied by terrainAmplitude *twice* and used a magic number.
-                // The *actual* world height is base_y + (heightmap_value * terrain_data_height).
-                // We set terrain_data_height to chunkSize in CreateTerrainInstance.
                 vertexPos.y = this.basePos.y + (heightmap[i, j] * terrainActualHeight);
 
-                // Resets the colors for normal points
-                sphereColor = Color.magenta; // Color.hotPink doesn't exist, magenta is close
+                // Resets the parameters for normal points
+                sphereColor = Color.black;
                 sphereRadius = 0.5f;
 
                 if (SinksOnZ[j].j == i)
@@ -228,7 +224,7 @@ public class Chunk : MonoBehaviour
                 // That's a "major sink" where this point is the lowest both in its X and Z lines
                 if ((SinksOnX[i].i == j) && (SinksOnZ[j].j == i))
                 {
-                    sphereColor = new Color(1, 0, 1); // Magenta (overwrites normal)
+                    sphereColor = new Color(1, 0, 1); // Magenta
                     sphereRadius = 1.5f;
                 }
 
@@ -237,7 +233,6 @@ public class Chunk : MonoBehaviour
             }
         }
     }
-
 
     public void Load()
     {
