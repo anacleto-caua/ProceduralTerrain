@@ -29,15 +29,10 @@ public class ChunkLoader : MonoBehaviour
 
     [InspectorLabel("Generation debug options")]
     public bool createDebugSpheres = true;
-
-
-
-
-
+    public int debugSpheresRange = 1;
 
     private readonly List<int> validResolutions = new List<int>
         { 33, 65, 129, 257, 513, 1025, 2049, 4097 };
-
 
     private void Awake()
     {
@@ -137,9 +132,12 @@ public class ChunkLoader : MonoBehaviour
 
         chunkScript.CreateChunk(
             pos, 
-            chunkSize, heightmapResolution, seed, terrainAmplitude,
-            createDebugSpheres
+            chunkSize, 
+            heightmapResolution, 
+            seed, 
+            terrainAmplitude
         );
+
         existingChunks.Add(pos, chunkScript);
     }
 
@@ -148,7 +146,6 @@ public class ChunkLoader : MonoBehaviour
         existingChunks.DestroyList();
         loadedChunks.DestroyList();
     }
-
 
     // This function is called in the editor when the script is loaded or a value is changed in the Inspector.
     private void OnValidate()
@@ -167,6 +164,34 @@ public class ChunkLoader : MonoBehaviour
         else if (terrainAmplitude > 1)
         {
             terrainAmplitude = 1;
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        Vector2Int currentChunkPos = new Vector2Int(
+            Mathf.RoundToInt(playerTransform.position.x / chunkSize),
+            Mathf.RoundToInt(playerTransform.position.z / chunkSize)
+        );
+
+        // Loops through the chunks supposed to be around the player
+        for (int x = currentChunkPos.x - debugSpheresRange; x < currentChunkPos.x + this.debugSpheresRange + 1; x++)
+        {
+            for (int y = currentChunkPos.y - debugSpheresRange; y < currentChunkPos.y + this.debugSpheresRange + 1; y++)
+            {
+                // Test if they're in a circle, may not be needed, just bad
+                if (
+                    Mathf.Pow((x - currentChunkPos.x), 2) + Mathf.Pow((y - currentChunkPos.y), 2)
+                    <= Mathf.Pow(debugSpheresRange, 2)
+                    )
+                {
+                    Vector2Int pos = new(x, y);
+                    if (loadedChunks.ContainsKey(pos))
+                    {
+                        loadedChunks.Get(pos).canDrawGizmos = true;
+                    }
+                }
+            }
         }
     }
 

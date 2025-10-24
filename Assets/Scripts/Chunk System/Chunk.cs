@@ -1,9 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
-using Unity.Hierarchy;
-using Unity.Mathematics;
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class Chunk : MonoBehaviour
@@ -15,7 +12,7 @@ public class Chunk : MonoBehaviour
     private int chunkSize = 0;
     private int heightmapResolution = 10;
     private int seed = 0;
-    public float terrainAmplitude;
+    private float terrainAmplitude;
     
     private float spaceBetweenGridVertexes;
 
@@ -26,8 +23,8 @@ public class Chunk : MonoBehaviour
     FastNoiseLite noise;
 
     // Terrain generation steps
-    private bool canDrawGizmos = false;
-    private bool shouldDrawGizmos = false;
+    public bool isChunkGenerated = false;
+    public bool canDrawGizmos = false;
 
     // Sinks 
     private Sink[] SinksOnX; 
@@ -44,18 +41,18 @@ public class Chunk : MonoBehaviour
 
     // This function should run at the start of every Chunk life spam
     public void CreateChunk(
-        Vector2Int pos, int chunkSize, 
-        int heightmapResolution, int seed, 
-        float terrainAmplitute, bool createDebugSpheres = false
+        Vector2Int pos, 
+        int chunkSize, 
+        int heightmapResolution, 
+        int seed, 
+        float terrainAmplitude
         )
     {
         this.gridPos = pos;
         this.chunkSize = chunkSize;
         this.heightmapResolution = heightmapResolution;
         this.seed = seed;
-        this.terrainAmplitude = terrainAmplitute;
-
-        this.shouldDrawGizmos = createDebugSpheres;
+        this.terrainAmplitude = terrainAmplitude;
 
         // This calculates the "0 0 position" for the chunk, since its placed by the center
         this.basePos = this.transform.position;
@@ -160,22 +157,18 @@ public class Chunk : MonoBehaviour
 
 
         }
-
-        if (shouldDrawGizmos)
-        {
-            canDrawGizmos = true;
-        }
     }
 
     public void SetTerrainHeights()
     {
         terrain.terrainData.SetHeights(0, 0, heightmap);
+        isChunkGenerated = true;
     }
 
     private void OnDrawGizmos()
     {
-        // Check if we should draw gizmos at all - MAY BE UNUSEFULL
-        if (!canDrawGizmos)
+        // Check if we should draw gizmos at all
+        if (!canDrawGizmos || !isChunkGenerated)
         {
             return;
         }
@@ -232,6 +225,8 @@ public class Chunk : MonoBehaviour
                 Gizmos.DrawSphere(vertexPos, sphereRadius);
             }
         }
+
+        canDrawGizmos = false;
     }
 
     public void Load()
