@@ -5,7 +5,6 @@ using UnityEngine;
 
 public class Chunk : MonoBehaviour
 {
-    public GameObject debugSpherePrefab;
     public Terrain terrain;
     public TerrainData terrainTemplate;
 
@@ -29,6 +28,7 @@ public class Chunk : MonoBehaviour
     // Sinks 
     private Sink[] SinksOnX; 
     private Sink[] SinksOnZ;
+    private Sink[] MajorSinks;
 
     public void Start()
     {
@@ -153,6 +153,13 @@ public class Chunk : MonoBehaviour
                     SinksOnX[j] = new Sink(u_x, u_y, i, j);
                 }
 
+                // Identify major sinks
+                // Major sinks are points where that's the lowest point on both this line and column
+                if (SinksOnX[i] == SinksOnZ[j])
+                {
+                    MajorSinks[ MajorSinks.Length ] = SinksOnX[i];
+                }
+
             }
 
 
@@ -178,14 +185,20 @@ public class Chunk : MonoBehaviour
         if (chunkSize > 0)
         {
             Gizmos.color = Color.red;
-            Gizmos.DrawSphere(this.transform.position, 1f); // MIDDLE
+            Gizmos.DrawWireSphere(this.transform.position, 1f); // MIDDLE
             Gizmos.color = Color.blue;
-            Gizmos.DrawSphere(basePos, 2f); // CORNER
+            Gizmos.DrawWireSphere(basePos, 2f); // CORNER
         }
 
+        // Possible colors:
+        Color DefaultSinkColor = new(0, .5f, 1, 1); // Light blue
+        Color XSinkColor = new(.5f, 1, 0, 1); // Lime green
+        Color ZSinkColor = new(1, .5f, 0, 1); // Orange
+        Color MajorSinkColor = new(1, 0, 1, 1); // Magenta
+
         float terrainActualHeight = terrain.terrainData.size.y;
-        Color sphereColor;
-        float sphereRadius;
+        Color cubeColor;
+        float cubeScale;
 
         // In this loop: i = row (z-axis), j = column (x-axis)
         for (int i = 0; i < this.heightmapResolution; i++)
@@ -196,33 +209,40 @@ public class Chunk : MonoBehaviour
                 vertexPos.x += j * this.spaceBetweenGridVertexes;
                 vertexPos.z += i * this.spaceBetweenGridVertexes;
 
-                vertexPos.y = this.basePos.y + (heightmap[i, j] * terrainActualHeight);
+                vertexPos.y = 
+                    this.basePos.y 
+                    + (heightmap[i, j] * terrainActualHeight)
+                    + .3f; // A little more height helps to make it more visible
 
                 // Resets the parameters for normal points
-                sphereColor = Color.black;
-                sphereRadius = 0.5f;
+                cubeColor = DefaultSinkColor;
+                cubeScale = 0.5f;
 
                 if (SinksOnZ[j].j == i)
                 {
-                    sphereColor = new Color(0, 1, 1); // Cyan
-                    sphereRadius = 1.3f;
+                    cubeColor = XSinkColor;
+                    cubeScale = 1.3f;
                 }
 
                 if (SinksOnX[i].i == j)
                 {
-                    sphereColor = new Color(1, 1, 0); // Yellow
-                    sphereRadius = 1.3f;
+                    cubeColor = ZSinkColor;
+                    cubeScale = 1.3f;
                 }
 
                 // That's a "major sink" where this point is the lowest both in its X and Z lines
                 if ((SinksOnX[i].i == j) && (SinksOnZ[j].j == i))
                 {
-                    sphereColor = new Color(1, 0, 1); // Magenta
-                    sphereRadius = 1.5f;
+                    cubeColor  = MajorSinkColor;
+                    cubeScale = 1.5f;
                 }
 
-                Gizmos.color = sphereColor;
-                Gizmos.DrawSphere(vertexPos, sphereRadius);
+
+                Gizmos.color = cubeColor;
+                Gizmos.DrawCube(vertexPos, Vector3.one * cubeScale);
+
+                // Wire Cubes are barely visible on the current setup, although more efficient, may use it later
+                //Gizmos.DrawWireCube(vertexPos, Vector3.one * cubeScale);
             }
         }
 
