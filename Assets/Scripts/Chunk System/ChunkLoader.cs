@@ -39,6 +39,9 @@ public class ChunkLoader : MonoBehaviour
         // It needs to be cleared because the editor and play mode
         // share the same instance of the scriptable object and threat it differently
         ClearExistingChunks();
+
+        // Feeds the seed into the Noise Singleton
+        ChunkNoise.SetSeed(seed);
     }
 
     void Start()
@@ -134,7 +137,6 @@ public class ChunkLoader : MonoBehaviour
             pos, 
             chunkSize, 
             heightmapResolution, 
-            seed, 
             terrainAmplitude
         );
 

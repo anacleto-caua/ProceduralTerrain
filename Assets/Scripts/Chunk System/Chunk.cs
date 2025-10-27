@@ -10,7 +10,6 @@ public class Chunk : MonoBehaviour
 
     private int chunkSize = 0;
     private int heightmapResolution = 10;
-    private int seed = 0;
     private float terrainAmplitude;
     
     private float spaceBetweenGridVertexes;
@@ -19,7 +18,6 @@ public class Chunk : MonoBehaviour
     private Vector3 basePos;
 
     private float[,] heightmap;
-    FastNoiseLite noise;
 
     // Terrain generation steps
     public bool isChunkGenerated = false;
@@ -44,14 +42,12 @@ public class Chunk : MonoBehaviour
         Vector2Int pos, 
         int chunkSize, 
         int heightmapResolution, 
-        int seed, 
         float terrainAmplitude
         )
     {
         this.gridPos = pos;
         this.chunkSize = chunkSize;
         this.heightmapResolution = heightmapResolution;
-        this.seed = seed;
         this.terrainAmplitude = terrainAmplitude;
 
         // This calculates the "0 0 position" for the chunk, since its placed by the center
@@ -64,7 +60,6 @@ public class Chunk : MonoBehaviour
         this.spaceBetweenGridVertexes = (float)((float)(this.chunkSize) / (float)(this.heightmapResolution));
 
         // Some functions to reduce bloat
-        CreateNoiseInstance();
         CreateTerrainInstance();
         
         // Gives a unique name so we now what's this about
@@ -73,22 +68,6 @@ public class Chunk : MonoBehaviour
         // Sinks ident variables
         SinksOnX = new Sink[this.heightmapResolution];
         SinksOnZ = new Sink[this.heightmapResolution];
-    }
-
-    private void CreateNoiseInstance()
-    {
-        // Creates the noise instance
-        this.noise = new FastNoiseLite();
-        noise.SetSeed(this.seed);
-        noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        noise.SetFrequency(0.010f);
-
-        noise.SetFractalType(FastNoiseLite.FractalType.FBm);
-        noise.SetFractalOctaves(3);
-        noise.SetFractalLacunarity(2.0f);
-        noise.SetFractalGain(0.5f);
-        noise.SetFractalWeightedStrength(0);
-        noise.SetFractalPingPongStrength(2.0f);
     }
 
     private void CreateTerrainInstance()
@@ -133,7 +112,7 @@ public class Chunk : MonoBehaviour
 
                 heightmap[j, i] = (
                     (
-                        noise.GetNoise(u_x, u_y)
+                        ChunkNoise.GetNoise(u_x, u_y)
                         + 1f) / 2.0f // Noise goes from 1 to -1 Unity's terrain need it between 0 and 1
                     )
                         * terrainAmplitude; // The Unity's terrain scale is too dramatic
