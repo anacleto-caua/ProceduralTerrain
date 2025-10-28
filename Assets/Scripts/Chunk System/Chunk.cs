@@ -1,7 +1,11 @@
+using NUnit.Framework.Internal;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
 using System.Threading.Tasks;
-using System.Xml.Serialization;
 using UnityEngine;
+using UnityEngine.iOS;
 
 public class Chunk : MonoBehaviour
 {
@@ -23,10 +27,20 @@ public class Chunk : MonoBehaviour
     public bool isChunkGenerated = false;
     public bool canDrawGizmos = false;
 
-    // Sinks 
+    // TODO: Consider a better naming for sinks
+    // Sinks Map: organize the sinks on x, z and major on a single matrix
+    private Sink[,] SinksMap;
+
+    // Sinks: the lowest point per line (X and Z) on this chunk
     private Sink[] SinksOnX; 
     private Sink[] SinksOnZ;
+    
+    // Major Sinks: The points that are the lowest on both the X and Z axis
     private Sink[] MajorSinks;
+    
+    // Real Sinks: The ones used to generate the river graph
+    private List<Sink> WorldSinks;
+
 
     public void Start()
     {
@@ -68,6 +82,9 @@ public class Chunk : MonoBehaviour
         // Sinks ident variables
         SinksOnX = new Sink[this.heightmapResolution];
         SinksOnZ = new Sink[this.heightmapResolution];
+        SinksMap = new Sink[this.heightmapResolution, this.heightmapResolution];
+        MajorSinks = new Sink[this.heightmapResolution];
+        WorldSinks = new List<Sink>();
     }
 
     private void CreateTerrainInstance()
@@ -85,12 +102,6 @@ public class Chunk : MonoBehaviour
         this.terrain.transform.parent = this.gameObject.transform;
     }
 
-    private async void GenerateChunkTerrain()
-    {
-        await Task.Run(() => { FillTerrainHeightData(); });
-        SetTerrainHeights();
-    }
-
     private void FillTerrainHeightData()
     {
         // The universal coordinates for the noise function
@@ -102,12 +113,7 @@ public class Chunk : MonoBehaviour
 
             for (int j = 0; j < this.heightmapResolution; j++)
             {
-                // Sets the first one as the smallest so we can compare with the ones to come
-                if (j == 0)
-                {
-                    SinksOnZ[i] = new Sink(u_x, u_y, i, j);
-                }
-
+               
                 u_y = (this.gridPos.y * this.heightmapResolution) + j - this.gridPos.y;
 
                 heightmap[j, i] = (
@@ -117,35 +123,54 @@ public class Chunk : MonoBehaviour
                     )
                         * terrainAmplitude; // The Unity's terrain scale is too dramatic
 
-                
-                if (heightmap[j,i] < heightmap[SinksOnZ[i].j, SinksOnZ[i].i])
+                // Sets the first one as the smallest so we can compare with the ones to come
+                if (j == 0)
                 {
-                    SinksOnZ[i] = new Sink(u_x, u_y, i, j);
+                    SinksOnZ[i] = new(u_x, u_y, i, j, SinkType.SinkOnZ);
+                }
+                else if (heightmap[j, i] < heightmap[SinksOnZ[i].j, SinksOnZ[i].i])
+                {
+                    SinksOnZ[i] = new(u_x, u_y, i, j, SinkType.SinkOnZ);
                 }
 
+                // Sets the first one as the smallest so we can compare with the ones to come
                 if (SinksOnX[j] == null)
                 {
-                    SinksOnX[j] = new Sink(u_x, u_y, i, j);
-                } 
+                    SinksOnX[j] = new(u_x, u_y, i, j, SinkType.SinkOnX);
+                }
                 else if (heightmap[j, i] < heightmap[SinksOnX[j].j, SinksOnX[j].i])
                 {
-                    SinksOnX[j] = new Sink(u_x, u_y, i, j);
+                    SinksOnX[j] = new(u_x, u_y, i, j, SinkType.SinkOnX);
                 }
 
                 // Identify major sinks
                 // Major sinks are points where that's the lowest point on both this line and column
-                if (SinksOnX[i] == SinksOnZ[j])
+                if (SinksOnX[i].Equals(SinksOnZ[j]))
                 {
-                    MajorSinks[ MajorSinks.Length ] = SinksOnX[i];
+                    SinksOnZ[i].type = SinkType.MajorSink;
+                    SinksOnX[j] = SinksOnZ[i];
+                    MajorSinks[i] = SinksOnZ[i];
                 }
-
             }
-
-
         }
+        WriteSinkMap();
     }
 
-    public void SetTerrainHeights()
+    private void WriteSinkMap()
+    {
+        void addToMap(Sink sink) => SinksMap[sink.i, sink.j] = sink;
+
+        Array.ForEach(SinksOnX, addToMap);
+        Array.ForEach(SinksOnZ, addToMap);
+    }
+
+    private async void GenerateChunkTerrain()
+    {
+        await Task.Run(() => { FillTerrainHeightData(); });
+        SetTerrainHeights();
+    }
+
+    private void SetTerrainHeights()
     {
         terrain.terrainData.SetHeights(0, 0, heightmap);
         isChunkGenerated = true;
@@ -171,9 +196,15 @@ public class Chunk : MonoBehaviour
 
         // Possible colors:
         Color DefaultSinkColor = new(0, .5f, 1, 1); // Light blue
+        float DefaultScale = .5f;
+
         Color XSinkColor = new(.5f, 1, 0, 1); // Lime green
         Color ZSinkColor = new(1, .5f, 0, 1); // Orange
+        float SinkScale = 1.3f;
+
         Color MajorSinkColor = new(1, 0, 1, 1); // Magenta
+        float MajorSinkScale = 1.5f;
+
 
         float terrainActualHeight = terrain.terrainData.size.y;
         Color cubeColor;
@@ -192,30 +223,35 @@ public class Chunk : MonoBehaviour
                     this.basePos.y 
                     + (heightmap[i, j] * terrainActualHeight)
                     + .3f; // A little more height helps to make it more visible
-
-                // Resets the parameters for normal points
+                
+                // Sets the default scale and color
                 cubeColor = DefaultSinkColor;
-                cubeScale = 0.5f;
+                cubeScale = DefaultScale;
 
-                if (SinksOnZ[j].j == i)
+                // Picks a new scale and color for sinks
+                if ( SinksMap[j, i] != null )
                 {
-                    cubeColor = XSinkColor;
-                    cubeScale = 1.3f;
-                }
+                    switch ( SinksMap[j, i].type )
+                    {
+                        case SinkType.SinkOnX:
+                            cubeColor = XSinkColor;
+                            cubeScale = SinkScale;
+                            break;
 
-                if (SinksOnX[i].i == j)
-                {
-                    cubeColor = ZSinkColor;
-                    cubeScale = 1.3f;
-                }
+                        case SinkType.SinkOnZ:
+                            cubeColor = ZSinkColor;
+                            cubeScale = SinkScale;
+                            break;
 
-                // That's a "major sink" where this point is the lowest both in its X and Z lines
-                if ((SinksOnX[i].i == j) && (SinksOnZ[j].j == i))
-                {
-                    cubeColor  = MajorSinkColor;
-                    cubeScale = 1.5f;
-                }
+                        case SinkType.MajorSink:
+                            cubeColor = MajorSinkColor;
+                            cubeScale = MajorSinkScale;
+                            break;
 
+                        default:
+                            throw new InvalidEnumArgumentException();
+                    }
+                }
 
                 Gizmos.color = cubeColor;
                 Gizmos.DrawCube(vertexPos, Vector3.one * cubeScale);
