@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using UnityEditor.Rendering.Universal.ShaderGUI;
 using UnityEngine;
 using UnityEngine.iOS;
 
@@ -123,45 +124,59 @@ public class Chunk : MonoBehaviour
                     )
                         * terrainAmplitude; // The Unity's terrain scale is too dramatic
 
-                // Sets the first one as the smallest so we can compare with the ones to come
-                if (j == 0)
-                {
-                    SinksOnZ[i] = new(u_x, u_y, i, j, SinkType.SinkOnZ);
-                }
-                else if (heightmap[j, i] < heightmap[SinksOnZ[i].j, SinksOnZ[i].i])
+                if (
+                    (j == 0) || 
+                    (heightmap[j, i] < heightmap[SinksOnZ[i].j, SinksOnZ[i].i])
+                    )
                 {
                     SinksOnZ[i] = new(u_x, u_y, i, j, SinkType.SinkOnZ);
                 }
 
-                // Sets the first one as the smallest so we can compare with the ones to come
-                if (SinksOnX[j] == null)
+                if (
+                    (SinksOnX[j] == null) || 
+                    (heightmap[j, i] < heightmap[SinksOnX[j].j, SinksOnX[j].i])
+                    )
                 {
                     SinksOnX[j] = new(u_x, u_y, i, j, SinkType.SinkOnX);
-                }
-                else if (heightmap[j, i] < heightmap[SinksOnX[j].j, SinksOnX[j].i])
-                {
-                    SinksOnX[j] = new(u_x, u_y, i, j, SinkType.SinkOnX);
-                }
-
-                // Identify major sinks
-                // Major sinks are points where that's the lowest point on both this line and column
-                if (SinksOnX[i].Equals(SinksOnZ[j]))
-                {
-                    SinksOnZ[i].type = SinkType.MajorSink;
-                    SinksOnX[j] = SinksOnZ[i];
-                    MajorSinks[i] = SinksOnZ[i];
                 }
             }
+
+            //    // --------- NEEDS REWORK ---------
+            //    // It would be possible and faster to identify major sinks here instead of outside this nested loop
+            //    // Identify major sinks
+            //    // Major sinks are points where that's the lowest point on both this line and column
+            //    if (SinksOnZ[i].Equals(SinksOnX[j]))
+            //    {
+            //        SinksOnZ[i].type = SinkType.MajorSink;
+            //        SinksOnX[j] = SinksOnZ[i];
+            //        MajorSinks[i] = SinksOnZ[i];
+            //    }
         }
         WriteSinkMap();
     }
 
     private void WriteSinkMap()
     {
-        void addToMap(Sink sink) => SinksMap[sink.i, sink.j] = sink;
 
-        Array.ForEach(SinksOnX, addToMap);
+        void addToMap(Sink sink) => SinksMap[sink.i, sink.j] = sink;
         Array.ForEach(SinksOnZ, addToMap);
+
+        foreach (Sink sink in SinksOnX)
+        {
+            // If there's already a sink in, means that this point is a major sink
+            if (!(SinksMap[sink.i, sink.j] == null))
+            {
+                sink.type = SinkType.MajorSink;
+                SinksMap[sink.i, sink.j] = sink;
+                SinksOnZ[sink.i] = sink;
+                MajorSinks[sink.i] = sink;
+            }
+            // Else just adds the sink to the map anyway
+            else
+            {
+                SinksMap[sink.i, sink.j] = sink;
+            }
+        }
     }
 
     private async void GenerateChunkTerrain()
