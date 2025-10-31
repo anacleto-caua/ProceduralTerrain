@@ -8,7 +8,7 @@ using UnityEngine.InputSystem.XR;
 public class AnaLogger
 {
     private static AnaLogger _defaultInstance;
-    private const string DefaultLogFileName = "default_log.txt";
+    private const string DefaultLogFileName = "default_log.log";
 
     private static AnaLogger DefaultInstance
     {
