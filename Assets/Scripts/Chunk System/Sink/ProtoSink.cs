@@ -1,3 +1,5 @@
+using UnityEngine;
+
 public abstract class ProtoSink
 {
     // Universal coordinates
@@ -48,6 +50,12 @@ public abstract class ProtoSink
         }
 
         return false;
+    }
+
+    public double Distance(ProtoSink sink)
+    {
+        double distance = Mathf.Sqrt(Mathf.Pow(sink.i - this.i, 2) + Mathf.Pow(sink.i - this.i, 2));
+        return distance;
     }
 
     public string ToString()

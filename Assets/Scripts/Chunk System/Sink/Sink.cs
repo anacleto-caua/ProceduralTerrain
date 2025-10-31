@@ -1,7 +1,11 @@
+using System.Collections.Generic;
+
 public class Sink : ProtoSink
 {
     // Weight measures how big and influent this Sink is
     public float weight;
+
+    public List<Sink> pointsTo;
 
     public Sink(PseudoSink psk, float weight) : base()
     {
@@ -11,5 +15,6 @@ public class Sink : ProtoSink
         this.j = psk.j;
 
         this.weight = weight;
+        this.pointsTo = new List<Sink>();
     }
 }

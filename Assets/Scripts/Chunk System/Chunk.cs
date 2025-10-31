@@ -110,8 +110,9 @@ public class Chunk : MonoBehaviour
     {
         await Task.Run(() => { FillTerrainHeightData(); });
 
-        WriteSinkMap();
-        IdentifyWorldSinks();
+        await Task.Run(() => { WriteSinkMap(); });
+        await Task.Run(() => { IdentifyWorldSinks(); });
+        await Task.Run(() => { FindFlowBetweenWorldSinks(); });
 
         SetTerrainHeights();
     }
@@ -263,6 +264,26 @@ public class Chunk : MonoBehaviour
         }
     }
 
+    public void FindFlowBetweenWorldSinks()
+    {
+        float minSinkPointDistance = 30f;
+
+        foreach (Sink sink in WorldSinks)
+        {
+            foreach(Sink innerSink in WorldSinks)
+            {
+                if (sink == innerSink)
+                {
+                    continue;
+                }
+
+                if(sink.Distance(innerSink) <= minSinkPointDistance)
+                {
+                    sink.pointsTo.Add(innerSink);
+                }
+            }
+        }
+    }
 
     public void Load()
     {
@@ -280,13 +301,15 @@ public class Chunk : MonoBehaviour
         {
             return;
         }
+        // Turn off the flag so gizmos will only run if solicited at this chunk
+        canDrawGizmos = false;
 
         // Draw the chunk corner/middle markers
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(this.transform.position, 1f); // MIDDLE
+        Gizmos.DrawWireSphere(this.transform.position, 3f); // MIDDLE
         Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(basePos, 2f); // CORNER
-        
+        Gizmos.DrawWireSphere(basePos, 3f); // CORNER
+
         // Needed consts:
         float gizmosBonusHeight = .3f;
         
@@ -358,7 +381,11 @@ public class Chunk : MonoBehaviour
 
         Color worldSinkColor = Color.darkBlue;
         float worldSinkBaseScale = 1.0f;
-        float worldSinkBonusHeight = 1.0f;
+
+        Color gizmoArrowColor = Color.purple;
+        
+        float flowGraphBonusHeight = 15f;
+
         foreach (Sink sink in WorldSinks)
         {
             Vector3 vertexPos = this.basePos;
@@ -367,15 +394,29 @@ public class Chunk : MonoBehaviour
             vertexPos.y =
                 this.basePos.y
                 + (heightmap[sink.j, sink.i] * terrainActualHeight)
-                + worldSinkBonusHeight; // A little more height helps to make it more visible
+                + flowGraphBonusHeight; // A little more height helps to make it more visible
 
             Gizmos.color = worldSinkColor;
             Gizmos.DrawWireSphere(
                 vertexPos, 
                 worldSinkBaseScale * sink.weight
                 );
+
+            // Draw the arrows point to nearby World Sinks
+            Gizmos.color = gizmoArrowColor;
+            foreach (Sink innerSink in sink.pointsTo)
+            {
+                Vector3 innerSinkPos = this.basePos;
+                innerSinkPos.x += innerSink.i * this.spaceBetweenGridVertexes;
+                innerSinkPos.z += innerSink.j * this.spaceBetweenGridVertexes;
+                innerSinkPos.y =
+                    this.basePos.y
+                    + (heightmap[innerSink.j, innerSink.i] * terrainActualHeight)
+                    + flowGraphBonusHeight; // A little more height helps to make it more visible
+
+                GizmoArrow.Draw(vertexPos, innerSinkPos);
+            }
         }
 
-        canDrawGizmos = false;
     }
 }
