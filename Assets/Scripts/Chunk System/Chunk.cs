@@ -224,23 +224,12 @@ public class Chunk : MonoBehaviour
             {
                 for (int y = newSink.j - worldSinkSwallowRadius; y < newSink.j + worldSinkSwallowRadius + 1; y++)
                 {
-                    // Ignore coordinates outside the heightmap
                     if (
-                        (x < 0 || x >= this.heightmapResolution) ||
-                        (y < 0 || y >= this.heightmapResolution)
+                        (x < 0 || x >= this.heightmapResolution)    ||      // Ignore coordinates outside the heightmap
+                        (y < 0 || y >= this.heightmapResolution)    ||
+                        (PseudoSinksMap[x, y] == null)              ||      // Ignore sinks that are not filled
+                        (!PseudoSinksMap[x, y].isAvailable)                 // Ignore sinks that where already used
                         )
-                    {
-                        continue;
-                    }
-
-                    // Ignore sinks that are not filled
-                    if (PseudoSinksMap[x, y] == null)
-                    {
-                        continue;
-                    }
-
-                    // Ignore sinks that where already used
-                    if (!PseudoSinksMap[x, y].isAvailable)
                     {
                         continue;
                     }
@@ -293,15 +282,10 @@ public class Chunk : MonoBehaviour
         }
 
         // Draw the chunk corner/middle markers
-        // Check if basePos has been initialized
-        if (chunkSize > 0)
-        {
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(this.transform.position, 1f); // MIDDLE
-            Gizmos.color = Color.blue;
-            Gizmos.DrawWireSphere(basePos, 2f); // CORNER
-        }
-
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(this.transform.position, 1f); // MIDDLE
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireSphere(basePos, 2f); // CORNER
         
         // Needed consts:
         float gizmosBonusHeight = .3f;

@@ -36,7 +36,7 @@ public class ChunkLoader : MonoBehaviour
 
     private void Awake()
     {
-        // It needs to be cleared because the editor and play mode
+        // It needs to be cleared because of the editor and play mode
         // share the same instance of the scriptable object and threat it differently
         ClearExistingChunks();
 
@@ -51,10 +51,10 @@ public class ChunkLoader : MonoBehaviour
     
     void Update()
     {
-        HandleChunkLoadingAsync();
+        HandleChunkLoading();
     }
 
-    public async Task HandleChunkLoadingAsync()
+    public void HandleChunkLoading()
     {
         // Translate word position to the grid pos position
         Vector2Int currentChunkPos = new Vector2Int(
