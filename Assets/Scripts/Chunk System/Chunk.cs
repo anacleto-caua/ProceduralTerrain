@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Unity.VisualScripting;
 using UnityEditor.Rendering.Universal.ShaderGUI;
 using UnityEngine;
+using UnityEngine.InputSystem.iOS;
 using UnityEngine.iOS;
 
 public class Chunk : MonoBehaviour
@@ -29,15 +31,15 @@ public class Chunk : MonoBehaviour
     public bool canDrawGizmos = false;
 
     // TODO: Consider a better naming for sinks
-    // Sinks Map: organize the sinks on x, z and major on a single matrix
-    private Sink[,] SinksMap;
+    // PseudoSinks Map: organize the sinks on x, z and major on a single matrix
+    private PseudoSink[,] PseudoSinksMap;
 
-    // Sinks: the lowest point per line (X and Z) on this chunk
-    private Sink[] SinksOnX; 
-    private Sink[] SinksOnZ;
+    // PseudoSinks: the lowest point per line (X and Z) on this chunk
+    private PseudoSink[] PseudoSinksOnX; 
+    private PseudoSink[] PseudoSinksOnZ;
     
-    // Major Sinks: The points that are the lowest on both the X and Z axis
-    private Sink[] MajorSinks;
+    // Major PseudoSinks: The points that are the lowest on both the X and Z axis
+    private PseudoSink[] MajorPseudoSinks;
     
     // Real Sinks: The ones used to generate the river graph
     private List<Sink> WorldSinks;
@@ -81,10 +83,10 @@ public class Chunk : MonoBehaviour
         this.gameObject.name = "Chunk|" + pos.x + "|" + pos.y + "|";
 
         // Sinks ident variables
-        SinksOnX = new Sink[this.heightmapResolution];
-        SinksOnZ = new Sink[this.heightmapResolution];
-        SinksMap = new Sink[this.heightmapResolution, this.heightmapResolution];
-        MajorSinks = new Sink[this.heightmapResolution];
+        PseudoSinksOnX = new PseudoSink[this.heightmapResolution];
+        PseudoSinksOnZ = new PseudoSink[this.heightmapResolution];
+        PseudoSinksMap = new PseudoSink[this.heightmapResolution, this.heightmapResolution];
+        MajorPseudoSinks = new PseudoSink[this.heightmapResolution];
         WorldSinks = new List<Sink>();
     }
 
@@ -101,6 +103,23 @@ public class Chunk : MonoBehaviour
         this.terrain.terrainData.heightmapResolution = this.heightmapResolution;
 
         this.terrain.transform.parent = this.gameObject.transform;
+    }
+
+
+    private async void GenerateChunkTerrain()
+    {
+        await Task.Run(() => { FillTerrainHeightData(); });
+
+        WriteSinkMap();
+        IdentifyWorldSinks();
+
+        SetTerrainHeights();
+    }
+
+    private void SetTerrainHeights()
+    {
+        terrain.terrainData.SetHeights(0, 0, heightmap);
+        isChunkGenerated = true;
     }
 
     private void FillTerrainHeightData()
@@ -126,18 +145,18 @@ public class Chunk : MonoBehaviour
 
                 if (
                     (j == 0) || 
-                    (heightmap[j, i] < heightmap[SinksOnZ[i].j, SinksOnZ[i].i])
+                    (heightmap[j, i] < heightmap[PseudoSinksOnZ[i].j, PseudoSinksOnZ[i].i])
                     )
                 {
-                    SinksOnZ[i] = new(u_x, u_y, i, j, SinkType.SinkOnZ);
+                    PseudoSinksOnZ[i] = new(u_x, u_y, i, j, SinkType.SinkOnZ);
                 }
 
                 if (
-                    (SinksOnX[j] == null) || 
-                    (heightmap[j, i] < heightmap[SinksOnX[j].j, SinksOnX[j].i])
+                    (PseudoSinksOnX[j] == null) || 
+                    (heightmap[j, i] < heightmap[PseudoSinksOnX[j].j, PseudoSinksOnX[j].i])
                     )
                 {
-                    SinksOnX[j] = new(u_x, u_y, i, j, SinkType.SinkOnX);
+                    PseudoSinksOnX[j] = new(u_x, u_y, i, j, SinkType.SinkOnX);
                 }
             }
 
@@ -145,50 +164,124 @@ public class Chunk : MonoBehaviour
             //    // It would be possible and faster to identify major sinks here instead of outside this nested loop
             //    // Identify major sinks
             //    // Major sinks are points where that's the lowest point on both this line and column
-            //    if (SinksOnZ[i].Equals(SinksOnX[j]))
+            //    if (PseudoSinksOnZ[i].Equals(PseudoSinksOnX[j]))
             //    {
-            //        SinksOnZ[i].type = SinkType.MajorSink;
-            //        SinksOnX[j] = SinksOnZ[i];
-            //        MajorSinks[i] = SinksOnZ[i];
+            //        PseudoSinksOnZ[i].type = SinkType.MajorSink;
+            //        PseudoSinksOnX[j] = PseudoSinksOnZ[i];
+            //        MajorPseudoSinks[i] = PseudoSinksOnZ[i];
             //    }
         }
-        WriteSinkMap();
     }
 
     private void WriteSinkMap()
     {
 
-        void addToMap(Sink sink) => SinksMap[sink.i, sink.j] = sink;
-        Array.ForEach(SinksOnZ, addToMap);
+        void addToMap(PseudoSink sink) => PseudoSinksMap[sink.i, sink.j] = sink;
+        Array.ForEach(PseudoSinksOnZ, addToMap);
 
-        foreach (Sink sink in SinksOnX)
+        foreach (PseudoSink sink in PseudoSinksOnX)
         {
             // If there's already a sink in, means that this point is a major sink
-            if (!(SinksMap[sink.i, sink.j] == null))
+            if (!(PseudoSinksMap[sink.i, sink.j] == null))
             {
                 sink.type = SinkType.MajorSink;
-                SinksMap[sink.i, sink.j] = sink;
-                SinksOnZ[sink.i] = sink;
-                MajorSinks[sink.i] = sink;
+                PseudoSinksMap[sink.i, sink.j] = sink;
+                PseudoSinksOnZ[sink.i] = sink;
+                MajorPseudoSinks[sink.i] = sink;
             }
             // Else just adds the sink to the map anyway
             else
             {
-                SinksMap[sink.i, sink.j] = sink;
+                PseudoSinksMap[sink.i, sink.j] = sink;
             }
         }
     }
 
-    private async void GenerateChunkTerrain()
+    private void IdentifyWorldSinks()
     {
-        await Task.Run(() => { FillTerrainHeightData(); });
-        SetTerrainHeights();
+        float majorPseudoSinkWeightGain = 5f;
+        float pseudoSinkWeightGain = 1f;
+
+        int worldSinkSwallowRadius = 5;
+
+        // Each MajorPSink becomes a new World Sink
+        foreach (PseudoSink psk in MajorPseudoSinks)
+        {
+            if (
+                ( psk == null ) ||
+                ( !psk.isAvailable )
+                )
+            {
+                continue;
+            }
+            Sink newSink = new(psk, majorPseudoSinkWeightGain);
+            psk.isAvailable = false;
+
+            // TODO: Check if adding all the sinks to a list and using a foreach wouldn't be faster
+            // than this hellhole nested loops and if checks chain
+            // Swallow all PseudoSinks around the New World Sink
+            for (int x = newSink.i - worldSinkSwallowRadius; x < newSink.i + worldSinkSwallowRadius + 1; x++)
+            {
+                for (int y = newSink.j - worldSinkSwallowRadius; y < newSink.j + worldSinkSwallowRadius + 1; y++)
+                {
+                    // Ignore coordinates outside the heightmap
+                    if (
+                        (x < 0 || x >= this.heightmapResolution) ||
+                        (y < 0 || y >= this.heightmapResolution)
+                        )
+                    {
+                        continue;
+                    }
+
+                    // Ignore sinks that are not filled
+                    if (PseudoSinksMap[x, y] == null)
+                    {
+                        continue;
+                    }
+
+                    // Ignore sinks that where already used
+                    if (!PseudoSinksMap[x, y].isAvailable)
+                    {
+                        continue;
+                    }
+
+                    PseudoSink currentSink = PseudoSinksMap[x, y];
+                    // Is this coordinate inside the circle
+                    if (
+                        Mathf.Pow((x - newSink.i), 2) + Mathf.Pow((y - newSink.j), 2)
+                        <= Mathf.Pow(worldSinkSwallowRadius, 2)
+                        )
+                    {
+                        float weightToSum = 0;
+
+                        switch (currentSink.type)
+                        {
+                            case SinkType.MajorSink:
+                                weightToSum = majorPseudoSinkWeightGain;
+                                break;
+
+                            default:
+                                weightToSum = pseudoSinkWeightGain;
+                                break;
+                        }
+                        newSink.weight += weightToSum;
+                        currentSink.isAvailable = false;
+                    }
+                }
+            }
+
+            WorldSinks.Add(newSink);
+        }
     }
 
-    private void SetTerrainHeights()
+
+    public void Load()
     {
-        terrain.terrainData.SetHeights(0, 0, heightmap);
-        isChunkGenerated = true;
+        this.gameObject.SetActive(true);
+    }
+    public void Unload()
+    {
+        this.gameObject.SetActive(false);
     }
 
     private void OnDrawGizmos()
@@ -209,7 +302,10 @@ public class Chunk : MonoBehaviour
             Gizmos.DrawWireSphere(basePos, 2f); // CORNER
         }
 
-        // Possible colors:
+        
+        // Needed consts:
+        float gizmosBonusHeight = .3f;
+        
         Color DefaultSinkColor = new(0, .5f, 1, 1); // Light blue
         float DefaultScale = .5f;
 
@@ -237,16 +333,16 @@ public class Chunk : MonoBehaviour
                 vertexPos.y = 
                     this.basePos.y 
                     + (heightmap[i, j] * terrainActualHeight)
-                    + .3f; // A little more height helps to make it more visible
+                    + gizmosBonusHeight; // A little more height helps to make it more visible
                 
                 // Sets the default scale and color
                 cubeColor = DefaultSinkColor;
                 cubeScale = DefaultScale;
 
                 // Picks a new scale and color for sinks
-                if ( SinksMap[j, i] != null )
+                if ( PseudoSinksMap[j, i] != null )
                 {
-                    switch ( SinksMap[j, i].type )
+                    switch ( PseudoSinksMap[j, i].type )
                     {
                         case SinkType.SinkOnX:
                             cubeColor = XSinkColor;
@@ -276,15 +372,26 @@ public class Chunk : MonoBehaviour
             }
         }
 
-        canDrawGizmos = false;
-    }
+        Color worldSinkColor = Color.darkBlue;
+        float worldSinkBaseScale = 1.0f;
+        float worldSinkBonusHeight = 1.0f;
+        foreach (Sink sink in WorldSinks)
+        {
+            Vector3 vertexPos = this.basePos;
+            vertexPos.x += sink.i * this.spaceBetweenGridVertexes;
+            vertexPos.z += sink.j * this.spaceBetweenGridVertexes;
+            vertexPos.y =
+                this.basePos.y
+                + (heightmap[sink.j, sink.i] * terrainActualHeight)
+                + worldSinkBonusHeight; // A little more height helps to make it more visible
 
-    public void Load()
-    {
-        this.gameObject.SetActive(true);
-    }
-    public void Unload()
-     {
-        this.gameObject.SetActive(false);
+            Gizmos.color = worldSinkColor;
+            Gizmos.DrawWireSphere(
+                vertexPos, 
+                worldSinkBaseScale * sink.weight
+                );
+        }
+
+        canDrawGizmos = false;
     }
 }

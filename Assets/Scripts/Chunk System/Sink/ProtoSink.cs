@@ -1,11 +1,4 @@
-public enum SinkType
-{
-    SinkOnX,
-    SinkOnZ,
-    MajorSink
-}
-
-public class Sink
+public abstract class ProtoSink
 {
     // Universal coordinates
     public int u_x;
@@ -15,12 +8,14 @@ public class Sink
     public int i;
     public int j;
 
-    // Track if the sink was used to make a world sink already
-    public bool isAvailable = true;
-
     public SinkType type;
 
-    public Sink(int u_x, int u_y, int i, int j)
+    public ProtoSink()
+    {
+
+    }
+
+    public ProtoSink(int u_x, int u_y, int i, int j)
     {
         this.u_x = u_x;
         this.u_y = u_y;
@@ -28,7 +23,7 @@ public class Sink
         this.j = j;
     }
 
-    public Sink(int u_x, int u_y, int i, int j, SinkType type)
+    public ProtoSink(int u_x, int u_y, int i, int j, SinkType type)
     {
         this.u_x = u_x;
         this.u_y = u_y;
@@ -37,15 +32,15 @@ public class Sink
         this.type = type;
     }
 
-    public bool Equals(Sink sink)
+    public bool Equals(ProtoSink sink)
     {
         if (this == null || sink == null)
         {
             return false;
         }
 
-        if(
-            (this.u_x == sink.u_x) && 
+        if (
+            (this.u_x == sink.u_x) &&
             (this.u_y == sink.u_y)
             )
         {
