@@ -304,15 +304,25 @@ public class Chunk : MonoBehaviour
         // Turn off the flag so gizmos will only run if solicited at this chunk
         canDrawGizmos = false;
 
-        // Draw the chunk corner/middle markers
+        HandlePosRefGizmos();
+        HandlePointGizmos();
+        HandleSinkGizmos();
+    }
+
+    public void HandlePosRefGizmos()
+    {
+        // Draw the chunk corner/center markers
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(this.transform.position, 3f); // MIDDLE
+        Gizmos.DrawWireSphere(this.transform.position, 3f); // CENTER
         Gizmos.color = Color.blue;
         Gizmos.DrawWireSphere(basePos, 3f); // CORNER
+    }
 
+    public void HandlePointGizmos()
+    {
         // Needed consts:
         float gizmosBonusHeight = .3f;
-        
+
         Color DefaultSinkColor = new(0, .5f, 1, 1); // Light blue
         float DefaultScale = .5f;
 
@@ -337,19 +347,19 @@ public class Chunk : MonoBehaviour
                 vertexPos.x += j * this.spaceBetweenGridVertexes;
                 vertexPos.z += i * this.spaceBetweenGridVertexes;
 
-                vertexPos.y = 
-                    this.basePos.y 
+                vertexPos.y =
+                    this.basePos.y
                     + (heightmap[i, j] * terrainActualHeight)
                     + gizmosBonusHeight; // A little more height helps to make it more visible
-                
+
                 // Sets the default scale and color
                 cubeColor = DefaultSinkColor;
                 cubeScale = DefaultScale;
 
                 // Picks a new scale and color for sinks
-                if ( PseudoSinksMap[j, i] != null )
+                if (PseudoSinksMap[j, i] != null)
                 {
-                    switch ( PseudoSinksMap[j, i].type )
+                    switch (PseudoSinksMap[j, i].type)
                     {
                         case SinkType.SinkOnX:
                             cubeColor = XSinkColor;
@@ -378,12 +388,17 @@ public class Chunk : MonoBehaviour
                 //Gizmos.DrawWireCube(vertexPos, Vector3.one * cubeScale);
             }
         }
+    }
+    
+    public void HandleSinkGizmos()
+    {
+        float terrainActualHeight = terrain.terrainData.size.y;
 
         Color worldSinkColor = Color.darkBlue;
         float worldSinkBaseScale = 1.0f;
 
         Color gizmoArrowColor = Color.purple;
-        
+
         float flowGraphBonusHeight = 15f;
 
         foreach (Sink sink in WorldSinks)
@@ -398,7 +413,7 @@ public class Chunk : MonoBehaviour
 
             Gizmos.color = worldSinkColor;
             Gizmos.DrawWireSphere(
-                vertexPos, 
+                vertexPos,
                 worldSinkBaseScale * sink.weight
                 );
 
@@ -417,6 +432,5 @@ public class Chunk : MonoBehaviour
                 GizmoArrow.Draw(vertexPos, innerSinkPos);
             }
         }
-
     }
 }
