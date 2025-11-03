@@ -29,4 +29,33 @@ public static class GizmoArrow
         Gizmos.DrawRay(target + targetRot, right * arrowHeadLength);
         Gizmos.DrawRay(target + targetRot, left * arrowHeadLength);
     }
+
+    public static void FatArrow(
+        Vector3 origin,
+        Vector3 target,
+        float arrowHeadLength = 0.25f,
+        float arrowHeadAngle = 20.0f
+        )
+    {
+        float arrowScale = Vector3.Distance(origin, target);
+        Vector3 cubeScale = new(1, 1, arrowScale);
+
+        Vector3 targetRot = (target - origin).normalized;
+
+        // Draw arrow body
+        Gizmos.DrawWireCube(origin, cubeScale);
+
+        // Needed to draw arrow fins
+        Vector3 right = Quaternion.LookRotation(targetRot) * Quaternion.Euler(0, 180 + arrowHeadAngle, 0) * Vector3.forward;
+        Vector3 left = Quaternion.LookRotation(targetRot) * Quaternion.Euler(0, 180 - arrowHeadAngle, 0) * Vector3.forward;
+
+        // Draw arrow fins
+
+        // At origin
+        Gizmos.DrawRay(origin + targetRot, right * arrowHeadLength);
+        Gizmos.DrawRay(origin + targetRot, left * arrowHeadLength);
+        // At target
+        Gizmos.DrawRay(target + targetRot, right * arrowHeadLength);
+        Gizmos.DrawRay(target + targetRot, left * arrowHeadLength);
+    }
 }
