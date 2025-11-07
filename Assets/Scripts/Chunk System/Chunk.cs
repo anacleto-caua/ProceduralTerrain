@@ -1,14 +1,8 @@
-using NUnit.Framework.Internal;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 using System.Threading.Tasks;
-using Unity.VisualScripting;
-using UnityEditor.Rendering.Universal.ShaderGUI;
 using UnityEngine;
-using UnityEngine.InputSystem.iOS;
-using UnityEngine.iOS;
 
 public class Chunk : MonoBehaviour
 {
@@ -47,11 +41,17 @@ public class Chunk : MonoBehaviour
 
     public void Start()
     {
+        AnaLogger.BeginBatch();
+        AnaLogger.Log($"Filing terrain data at chunk: {this.name}");
         GenerateChunkTerrain();
     }
 
     public void Update()
     {
+        // TODO:
+        // This update shouldn't exist
+        // consider deleting the script after the chunk have been generated
+        // and having another(non MonoBehaviour) script to keep track of the chunk's existence
     }
 
     // This function should run at the start of every Chunk life spam
@@ -105,7 +105,6 @@ public class Chunk : MonoBehaviour
         this.terrain.transform.parent = this.gameObject.transform;
     }
 
-
     private async void GenerateChunkTerrain()
     {
         await Task.Run(() => { FillTerrainHeightData(); });
@@ -128,21 +127,35 @@ public class Chunk : MonoBehaviour
         // The universal coordinates for the noise function
         int u_x, u_y = 0;
 
+        // i is the growth on x - j is the growth on z
         for (int i = 0; i < this.heightmapResolution; i++)
         {
             u_x = (this.gridPos.x * this.heightmapResolution) + i - this.gridPos.x;
 
             for (int j = 0; j < this.heightmapResolution; j++)
             {
-               
                 u_y = (this.gridPos.y * this.heightmapResolution) + j - this.gridPos.y;
 
-                heightmap[j, i] = (
+                // The coordinates for "steepness" around the chunk
+                float edgeSteepness     = LiveEdgeNoise.GetNoise(this.gridPos.x, this.gridPos.y);
+
+                // Just to make the code seems cleaner
+                float n = (this.heightmapResolution) ;
+
+                float steepnessWeight = i > n ? 1 - (((1 - i) + (n - 1)) / n) : 0;
+
+                // TODO: Fiddle with this "magic value"
+                float noiseWeight = .1f; 
+                float edgeWeight =  1f - noiseWeight;
+
+                heightmap[j, i] =
                     (
-                        ChunkNoise.GetNoise(u_x, u_y)
-                        + 1f) / 2.0f // Noise goes from 1 to -1 Unity's terrain need it between 0 and 1
-                    )
-                        * terrainAmplitude; // The Unity's terrain scale is too dramatic
+                        (
+                        ChunkNoise.GetNoise(u_x, u_y) * noiseWeight
+                        +
+                        edgeSteepness * steepnessWeight * edgeWeight
+                        )
+                    );
 
                 if (
                     (j == 0) || 
@@ -285,6 +298,11 @@ public class Chunk : MonoBehaviour
         }
     }
 
+    public void GetNoise(int u_x, int u_y)
+    {
+
+    }
+        
     public void Load()
     {
         this.gameObject.SetActive(true);
