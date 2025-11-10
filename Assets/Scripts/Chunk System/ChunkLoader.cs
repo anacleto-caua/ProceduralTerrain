@@ -27,6 +27,10 @@ public class ChunkLoader : MonoBehaviour
     [Tooltip("This defines the difference between the lower and highest part of the terrain, keep between 0 and 1.")]
     public float terrainAmplitude = 1f;
 
+    [Tooltip("Determine how much the chunk noise and the live edge noise affect the end result, their sum shall equate to 1f")]
+    public float noiseWeight = .1f;
+    public float slopeWeight = .9f;
+
     [InspectorLabel("Generation debug options")]
     public bool createDebugSpheres = true;
     public int debugSpheresRange = 1;
@@ -137,7 +141,9 @@ public class ChunkLoader : MonoBehaviour
             pos, 
             chunkSize, 
             heightmapResolution, 
-            terrainAmplitude
+            terrainAmplitude,
+            noiseWeight,
+            slopeWeight
         );
 
         existingChunks.Add(pos, chunkScript);

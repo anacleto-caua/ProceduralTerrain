@@ -480,6 +480,8 @@ MonoBehaviour:
   chunkSize: 150
   heightmapResolution: 65
   terrainAmplitude: 0.3
+  noiseWeight: 0.1
+  slopeWeight: 0.9
   createDebugSpheres: 1
   debugSpheresRange: 1
 --- !u!135 &1161348948

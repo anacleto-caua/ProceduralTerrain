@@ -38,6 +38,10 @@ public class Chunk : MonoBehaviour
     // Real Sinks: The ones used to generate the river graph
     private List<Sink> WorldSinks;
 
+    // Determine how much the chunk noise and the live edge noise affect the end result
+    // Their sum shall equate to 1f
+    float noiseWeight;
+    float slopeWeight;
 
     public void Start()
     {
@@ -58,13 +62,17 @@ public class Chunk : MonoBehaviour
         Vector2Int pos, 
         int chunkSize, 
         int heightmapResolution, 
-        float terrainAmplitude
+        float terrainAmplitude,
+        float noiseWeight,
+        float slopeWeight
         )
     {
         this.gridPos = pos;
         this.chunkSize = chunkSize;
         this.heightmapResolution = heightmapResolution;
         this.terrainAmplitude = terrainAmplitude;
+        this.noiseWeight = noiseWeight;
+        this.slopeWeight = slopeWeight;
 
         // This calculates the "0 0 position" for the chunk, since its placed by the center
         this.basePos = this.transform.position;
@@ -147,91 +155,62 @@ public class Chunk : MonoBehaviour
     private void FillTerrainHeightData()
     {
         AnaLogger.Log($"Began filling heightmap at chunk x: {this.gridPos.x} y: {this.gridPos.y}");
+
+        float height_NW = LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y + .5f); // North-West Corner
+        float height_NE = LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y + .5f); // North-East Corner
+        float height_SW = LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y - .5f); // South-West Corner
+        float height_SE = LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y - .5f); // South-East Corner
+
+        AnaLogger.Log($"Corner Heights: SW:{height_SW:F3}, SE:{height_SE:F3}, NW:{height_NW:F3}, NE:{height_NE:F3}");
+
+        float maxIndex = this.heightmapResolution - 1;
+
         // The universal coordinates for the ChunkNoise function
-        int u_x, u_y = 0;
+        int u_x, u_y;
 
         // i is the growth on x - j is the growth on z
         for (int i = 0; i < this.heightmapResolution; i++)
         {
             u_x = (this.gridPos.x * this.heightmapResolution) + i - this.gridPos.x;
 
+            // Normalized interpolation factor for i(t_x)
+            // This is a value from 0.0 (at West edge, i=0) to 1.0 (at East edge, i=maxIndex)
+            float t_i = (float)i / maxIndex;
+
+            // Find the point on the South edge (interpolating between SW and SE)
+            float heightSouthEdge = Mathf.Lerp(height_SW, height_SE, t_i);
+            // Find the point on the North edge (interpolating between NW and NE)
+            float heightNorthEdge = Mathf.Lerp(height_NW, height_NE, t_i);
+
             for (int j = 0; j < this.heightmapResolution; j++)
             {
                 u_y = (this.gridPos.y * this.heightmapResolution) + j - this.gridPos.y;
 
-                // The coordinates for "steepness" around the chunk
-                float northEdgeSteepness    = LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y);
-                float southEdgeSteepness    = LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y);
-                float eastEdgeSteepness     = LiveEdgeNoise.GetNoise(this.gridPos.x, this.gridPos.y - .5f);
-                float westEdgeSteepness     = LiveEdgeNoise.GetNoise(this.gridPos.x, this.gridPos.y + .5f);
+                // Normalized interpolation factor for j (t_y)
+                // This is a value from 0.0 (at South edge, j=0) to 1.0 (at North edge, j=maxIndex)
+                float t_j = (float)j / maxIndex;
 
-                // Just to make the code seems cleaner
-                float a = (this.heightmapResolution) - 1;
-                float n = 2*a;
-                float m = a;
+                // Vertical bilinear interpolation
+                float finalSlopeValue = Mathf.Lerp(heightSouthEdge, heightNorthEdge, t_j);
 
-                float northTentDecline = 1 - Mathf.Abs((j / n) * 2 - 1);
-                float southTentDecline = 1 - Mathf.Abs(( (n - j) / n) * 2 - 1);
+                // Get the Chunk Noise
+                float chunkNoiseValue = ChunkNoise.GetNoise(u_x, u_y);
 
-                float eastTentDecline = 1 - Mathf.Abs((i / n) * 2 - 1);
-                float westTentDecline = 1 - Mathf.Abs(( (n - i) / n) * 2 - 1);
+                // Calculate the height value
+                float actualHeightmap = (chunkNoiseValue * noiseWeight) + (finalSlopeValue * slopeWeight);
 
-                northTentDecline = 1;
-                southTentDecline = 1;
-                eastTentDecline = 1;
-                westTentDecline = 1;
-
-                float northSteepnessWeight  = (((1 - i) + (m - 1)) / m);
-                float southSteepnessWeight  = 1 - (((1 - i) + (m - 1)) / m);
-
-                float eastSteepnessWeight   = (((1 - j) + (m - 1)) / m);
-                float westSteepnessWeight   = 1 - (((1 - j) + (m - 1)) / m);
-
-                northSteepnessWeight *= northTentDecline;
-                southSteepnessWeight *= southTentDecline;
-
-                eastSteepnessWeight *= eastTentDecline;
-                westSteepnessWeight *= westTentDecline;
-
-                // TODO: Fiddle with this "magic value"
-                float noiseWeight = .1f; 
-                float edgeWeight =  1f - noiseWeight;
-
-                // Pre-calculate the values
-                float chunkNoiseValue = ChunkNoise.GetNoise(u_x, u_y) * noiseWeight;
-                    chunkNoiseValue = 0;
-                float edgeValue = (
-                        northEdgeSteepness * northSteepnessWeight
-                        + southEdgeSteepness * southSteepnessWeight
-                        + eastEdgeSteepness * eastSteepnessWeight
-                        + westEdgeSteepness * westSteepnessWeight
-                    );
-                float finalEdgeValue = edgeValue * edgeWeight;
-
-                float actualHeightmap = 
-                    (
-                        chunkNoiseValue
-                        +
-                        finalEdgeValue
-                    );
                 // Logging
                 AnaLogger.Log(
-                    // Pad gridPos to 2 chars, i/j to 3, universal coords to 4
                     $"Chunk[{this.gridPos.x,2},{this.gridPos.y,2}] Coords[i:{i,3},j:{j,3}] (u:{u_x,4},{u_y,4})" +
-
-                    // Pad all float values to 6 chars, while keeping 3 decimal places
-                    $" | Noise: {chunkNoiseValue,6:F3}" +
-                    $" | N-Edge: {northEdgeSteepness,6:F3} (N-W: {northSteepnessWeight,6:F3})" +
-                    $" | S-Edge: {southEdgeSteepness,6:F3} (S-W: {southSteepnessWeight,6:F3})" +
-                    $" | E-Edge: {eastEdgeSteepness,6:F3} (E-W: {eastSteepnessWeight,6:F3})" +
-                    $" | W-Edge: {westEdgeSteepness,6:F3} (W-W: {westSteepnessWeight,6:F3})" +
-                    $" | EdgeValue: {edgeValue,6:F3}" +
-                    $" | FinalEdgeValue: {finalEdgeValue,6:F3}" +
-                    $" | FinalNoiseValue: {actualHeightmap,6:F3}"
+                    $" | t_i: {t_i:F3}, t_j: {t_j:F3}" +
+                    $" | S_Edge: {heightSouthEdge:F3}, N_Edge: {heightNorthEdge:F3}" +
+                    $" | FinalSlope: {finalSlopeValue,6:F3}" +
+                    $" | FinalNoise: {chunkNoiseValue,6:F3}" +
+                    $" | FinalHeight: {actualHeightmap,6:F3}"
                 );
 
                 // Actually fills in the heightmap matrix
-                heightmap[j, i] = (actualHeightmap);
+                heightmap[j, i] = actualHeightmap;
 
                 if (
                     (j == 0) || 
