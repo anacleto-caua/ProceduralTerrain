@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using UnityEditor.ShaderGraph.Internal;
 using UnityEngine;
 using UnityEngine.SocialPlatforms.Impl;
 
@@ -44,6 +45,9 @@ public class Chunk : MonoBehaviour
     float noiseWeight;
     float slopeWeight;
 
+    // This is the "steepness" factor and make slopes way more aggressive
+    float slopeAggressiveness;
+
     public void Start()
     {
         AnaLogger.Log($"Filing terrain data at chunk: {this.name}");
@@ -65,7 +69,8 @@ public class Chunk : MonoBehaviour
         int heightmapResolution, 
         float terrainAmplitude,
         float noiseWeight,
-        float slopeWeight
+        float slopeWeight,
+        float slopeAggressiveness
         )
     {
         this.gridPos = pos;
@@ -74,6 +79,7 @@ public class Chunk : MonoBehaviour
         this.terrainAmplitude = terrainAmplitude;
         this.noiseWeight = noiseWeight;
         this.slopeWeight = slopeWeight;
+        this.slopeAggressiveness = slopeAggressiveness;
 
         // This calculates the "0 0 position" for the chunk, since its placed by the center
         this.basePos = this.transform.position;
@@ -156,9 +162,6 @@ public class Chunk : MonoBehaviour
     private void FillTerrainHeightData()
     {
         AnaLogger.Log($"Began filling heightmap at chunk x: {this.gridPos.x} y: {this.gridPos.y}");
-
-        // This is the "steepness" factor and make slopes way more aggressive
-        float slopeAggressiveness = 8.0f;
 
         float height_SW = RemapHeight(LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y - .5f), slopeAggressiveness); // South-West Corner
         float height_SE = RemapHeight(LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y - .5f), slopeAggressiveness); // South-East Corner
@@ -256,6 +259,7 @@ public class Chunk : MonoBehaviour
     }
     private float RemapHeight(float h, float p)
     {
+        // TODO: Fiddle with this magic value
         if (h < 0.5f)
         {
             // Ease-In: Pushes values < 0.5 down towards 0

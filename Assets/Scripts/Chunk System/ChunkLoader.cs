@@ -31,6 +31,9 @@ public class ChunkLoader : MonoBehaviour
     public float noiseWeight = .1f;
     public float slopeWeight = .9f;
 
+    [Tooltip("Makes the slope growth way more aggressive")]
+    public float slopeAggressiveness =  8f;
+
     [InspectorLabel("Generation debug options")]
     public bool createDebugSpheres = true;
     public int debugSpheresRange = 1;
@@ -143,7 +146,8 @@ public class ChunkLoader : MonoBehaviour
             heightmapResolution, 
             terrainAmplitude,
             noiseWeight,
-            slopeWeight
+            slopeWeight,
+            slopeAggressiveness
         );
 
         existingChunks.Add(pos, chunkScript);
