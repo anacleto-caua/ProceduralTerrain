@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.SocialPlatforms.Impl;
 
 public class Chunk : MonoBehaviour
 {
@@ -202,15 +203,24 @@ public class Chunk : MonoBehaviour
                 // Calculate the height value
                 float actualHeightmap = (chunkNoiseValue * noiseWeight) + (finalSlopeValue * slopeWeight);
 
+                if(actualHeightmap > 1)
+                {
+                    Debug.LogError("HEIGHMAP BIGGER THAN 1, RECONSIDER CODE");
+                }
+                else if(actualHeightmap < 0)
+                {
+                    Debug.LogError("HEIGHMAP SMALLER THAN 0, RECONSIDER CODE");
+                }
+
                 // Logging
                 AnaLogger.Log(
-                    $"Chunk[{this.gridPos.x,2},{this.gridPos.y,2}] Coords[i:{i,3},j:{j,3}] (u:{u_x,4},{u_y,4})" +
-                    $" | t_i: {t_i:F3}, t_j: {t_j:F3}" +
-                    $" | S_Edge: {heightSouthEdge:F3}, N_Edge: {heightNorthEdge:F3}" +
-                    $" | FinalSlope: {finalSlopeValue,6:F3}" +
-                    $" | FinalNoise: {chunkNoiseValue,6:F3}" +
-                    $" | FinalHeight: {actualHeightmap,6:F3}"
-                );
+                        $"Chunk[{this.gridPos.x,2},{this.gridPos.y,2}] Coords[i:{i,3},j:{j,3}] (u:{u_x,4},{u_y,4})" +
+                        $" | t_i: {t_i:F3}, t_j: {t_j:F3}" +
+                        $" | S_Edge: {heightSouthEdge:F3}, N_Edge: {heightNorthEdge:F3}" +
+                        $" | FinalSlope: {finalSlopeValue,6:F3}" +
+                        $" | FinalNoise: {chunkNoiseValue,6:F3}" +
+                        $" | FinalHeight: {actualHeightmap,6:F3}"
+                    );
 
                 // Actually fills in the heightmap matrix
                 heightmap[j, i] = actualHeightmap;
