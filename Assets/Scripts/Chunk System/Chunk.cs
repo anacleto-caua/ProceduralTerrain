@@ -41,7 +41,6 @@ public class Chunk : MonoBehaviour
 
     public void Start()
     {
-        AnaLogger.BeginBatch();
         AnaLogger.Log($"Filing terrain data at chunk: {this.name}");
         GenerateChunkTerrain();
     }
@@ -107,11 +106,34 @@ public class Chunk : MonoBehaviour
 
     private async void GenerateChunkTerrain()
     {
-        await Task.Run(() => { FillTerrainHeightData(); });
+        await Task.Run(() => {
+            // This batch is tied to *this specific worker thread*
+            using (AnaLogger.BeginBatch())
+            {
+                FillTerrainHeightData();
+            }
+        });
 
-        await Task.Run(() => { WriteSinkMap(); });
-        await Task.Run(() => { IdentifyWorldSinks(); });
-        await Task.Run(() => { FindFlowBetweenWorldSinks(); });
+        await Task.Run(() => {
+            using (AnaLogger.BeginBatch())
+            {
+                WriteSinkMap();
+            }
+        });
+
+        await Task.Run(() => {
+            using (AnaLogger.BeginBatch())
+            {
+                IdentifyWorldSinks();
+            }
+        });
+
+        await Task.Run(() => {
+            using (AnaLogger.BeginBatch())
+            {
+                FindFlowBetweenWorldSinks();
+            }
+        });
 
         SetTerrainHeights();
     }
@@ -124,7 +146,8 @@ public class Chunk : MonoBehaviour
 
     private void FillTerrainHeightData()
     {
-        // The universal coordinates for the noise function
+        AnaLogger.Log($"Began filling heightmap at chunk x: {this.gridPos.x} y: {this.gridPos.y}");
+        // The universal coordinates for the ChunkNoise function
         int u_x, u_y = 0;
 
         // i is the growth on x - j is the growth on z
@@ -137,25 +160,78 @@ public class Chunk : MonoBehaviour
                 u_y = (this.gridPos.y * this.heightmapResolution) + j - this.gridPos.y;
 
                 // The coordinates for "steepness" around the chunk
-                float edgeSteepness     = LiveEdgeNoise.GetNoise(this.gridPos.x, this.gridPos.y);
+                float northEdgeSteepness    = LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y);
+                float southEdgeSteepness    = LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y);
+                float eastEdgeSteepness     = LiveEdgeNoise.GetNoise(this.gridPos.x, this.gridPos.y - .5f);
+                float westEdgeSteepness     = LiveEdgeNoise.GetNoise(this.gridPos.x, this.gridPos.y + .5f);
 
                 // Just to make the code seems cleaner
-                float n = (this.heightmapResolution) ;
+                float a = (this.heightmapResolution) - 1;
+                float n = 2*a;
+                float m = a;
 
-                float steepnessWeight = i > n ? 1 - (((1 - i) + (n - 1)) / n) : 0;
+                float northTentDecline = 1 - Mathf.Abs((j / n) * 2 - 1);
+                float southTentDecline = 1 - Mathf.Abs(( (n - j) / n) * 2 - 1);
+
+                float eastTentDecline = 1 - Mathf.Abs((i / n) * 2 - 1);
+                float westTentDecline = 1 - Mathf.Abs(( (n - i) / n) * 2 - 1);
+
+                northTentDecline = 1;
+                southTentDecline = 1;
+                eastTentDecline = 1;
+                westTentDecline = 1;
+
+                float northSteepnessWeight  = (((1 - i) + (m - 1)) / m);
+                float southSteepnessWeight  = 1 - (((1 - i) + (m - 1)) / m);
+
+                float eastSteepnessWeight   = (((1 - j) + (m - 1)) / m);
+                float westSteepnessWeight   = 1 - (((1 - j) + (m - 1)) / m);
+
+                northSteepnessWeight *= northTentDecline;
+                southSteepnessWeight *= southTentDecline;
+
+                eastSteepnessWeight *= eastTentDecline;
+                westSteepnessWeight *= westTentDecline;
 
                 // TODO: Fiddle with this "magic value"
                 float noiseWeight = .1f; 
                 float edgeWeight =  1f - noiseWeight;
 
-                heightmap[j, i] =
-                    (
-                        (
-                        ChunkNoise.GetNoise(u_x, u_y) * noiseWeight
-                        +
-                        edgeSteepness * steepnessWeight * edgeWeight
-                        )
+                // Pre-calculate the values
+                float chunkNoiseValue = ChunkNoise.GetNoise(u_x, u_y) * noiseWeight;
+                    chunkNoiseValue = 0;
+                float edgeValue = (
+                        northEdgeSteepness * northSteepnessWeight
+                        + southEdgeSteepness * southSteepnessWeight
+                        + eastEdgeSteepness * eastSteepnessWeight
+                        + westEdgeSteepness * westSteepnessWeight
                     );
+                float finalEdgeValue = edgeValue * edgeWeight;
+
+                float actualHeightmap = 
+                    (
+                        chunkNoiseValue
+                        +
+                        finalEdgeValue
+                    );
+                // Logging
+                AnaLogger.Log(
+                    // Pad gridPos to 2 chars, i/j to 3, universal coords to 4
+                    $"Chunk[{this.gridPos.x,2},{this.gridPos.y,2}] Coords[i:{i,3},j:{j,3}] (u:{u_x,4},{u_y,4})" +
+
+                    // Pad all float values to 6 chars, while keeping 3 decimal places
+                    $" | Noise: {chunkNoiseValue,6:F3}" +
+                    $" | N-Edge: {northEdgeSteepness,6:F3} (N-W: {northSteepnessWeight,6:F3})" +
+                    $" | S-Edge: {southEdgeSteepness,6:F3} (S-W: {southSteepnessWeight,6:F3})" +
+                    $" | E-Edge: {eastEdgeSteepness,6:F3} (E-W: {eastSteepnessWeight,6:F3})" +
+                    $" | W-Edge: {westEdgeSteepness,6:F3} (W-W: {westSteepnessWeight,6:F3})" +
+                    $" | EdgeValue: {edgeValue,6:F3}" +
+                    $" | FinalEdgeValue: {finalEdgeValue,6:F3}" +
+                    $" | FinalNoiseValue: {actualHeightmap,6:F3}"
+                );
+
+                // Actually fills in the heightmap matrix
+                heightmap[j, i] = (actualHeightmap);
 
                 if (
                     (j == 0) || 
