@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading;
-using Unity.Logging;
 using UnityEngine;
+using System.Collections.Concurrent;
 
 public class AnaLogger :  IDisposable
 {
@@ -28,6 +27,12 @@ public class AnaLogger :  IDisposable
             AnaLogger.EndBatch();
         }
     }
+    
+    // A thread-safe queue that all threads can write to
+    private static readonly ConcurrentQueue<string> _globalBuffer = new ConcurrentQueue<string>();
+
+    // A switch to turn buffering on/off.
+    private static volatile bool _isBuffering = false;
 
     private static AnaLogger DefaultInstance
     {
@@ -124,7 +129,7 @@ public class AnaLogger :  IDisposable
 
         if (builder != null && builder.Length > 0)
         {
-            _batchBuilder.Value.AppendLine(makeLogViableString("Batch log finished!"));
+            builder.AppendLine(makeLogViableString("Batch log finished!"));
             
             // The batch is complete.
             // Write the entire built string to the file at once.
@@ -132,33 +137,71 @@ public class AnaLogger :  IDisposable
         }
     }
 
-    public static string makeLogViableString(string msg, bool breakLine = true)
+    public static void StartBuffering()
+    {
+        _isBuffering = true;
+    }
+
+    public static void StopBufferingAndDump()
+    {
+        // Turn off buffering switch
+        _isBuffering = false;
+
+        // Build the batch string from the queue.
+        // This is fast and should happen *before* we take the lock.
+        StringBuilder batch = new StringBuilder();
+        while (_globalBuffer.TryDequeue(out string message))
+        {
+            batch.Append(message);
+        }
+
+        // If we have anything, write it to the log file
+        if (batch.Length > 0)
+        {
+            DefaultInstance.WriteRaw(batch.ToString());
+        }
+    }
+
+    public static string makeLogViableString(string msg, bool newline = true)
     {
         string result = $"[{System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")}] {msg}";
-        if (breakLine)
+
+        if (newline)
         {
             result += Environment.NewLine;
         }
         return result;
     }
-    public static void Log(string message, bool breakLine = true)
-    {
-        string finalMessage = makeLogViableString(message ?? "null", breakLine);
 
-        // Check for batch mode
+    public static void Log(string message, bool newline = true)
+    {
+        // Format the message
+        string finalMessage = makeLogViableString(message ?? "null", newline);
+
+        // Check for global buffering
+        if (_isBuffering)
+        {
+            // We are in global buffer mode.
+            // Add to the queue. This is thread-safe and lock-free.
+            _globalBuffer.Enqueue(finalMessage);
+            
+            return; 
+        }
+
+        // TODO: May remove
+        // OLD: Check for THREAD-LOCAL batching
         var builder = _batchBuilder.Value;
         if (builder != null)
         {
-            // We are in a batch.
-            // Just append to the thread's local builder.
+            // We are in a thread-local batch. Append to builder.
             builder.Append(finalMessage);
+            
+            return;
         }
-        else
-        {
-            // Not in a batch.
-            // Call the instance method to write immediately.
-            DefaultInstance.WriteRaw(finalMessage);
-        }
+
+        // IMMEDIATE MODE
+        // No buffers, no batches. Write to file now.
+        DefaultInstance.WriteRaw(finalMessage);
     }
 
     public static void Log(Vector3[] message)
