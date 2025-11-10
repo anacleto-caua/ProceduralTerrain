@@ -156,10 +156,13 @@ public class Chunk : MonoBehaviour
     {
         AnaLogger.Log($"Began filling heightmap at chunk x: {this.gridPos.x} y: {this.gridPos.y}");
 
-        float height_NW = LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y + .5f); // North-West Corner
-        float height_NE = LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y + .5f); // North-East Corner
-        float height_SW = LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y - .5f); // South-West Corner
-        float height_SE = LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y - .5f); // South-East Corner
+        // This is the "steepness" factor and make slopes way more aggressive
+        float slopeAggressiveness = 8.0f;
+
+        float height_SW = RemapHeight(LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y - .5f), slopeAggressiveness); // South-West Corner
+        float height_SE = RemapHeight(LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y - .5f), slopeAggressiveness); // South-East Corner
+        float height_NW = RemapHeight(LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y + .5f), slopeAggressiveness); // North-West Corner
+        float height_NE = RemapHeight(LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y + .5f), slopeAggressiveness); // North-East Corner
 
         AnaLogger.Log($"Corner Heights: SW:{height_SW:F3}, SE:{height_SE:F3}, NW:{height_NW:F3}, NE:{height_NE:F3}");
 
@@ -239,6 +242,19 @@ public class Chunk : MonoBehaviour
             //        PseudoSinksOnX[j] = PseudoSinksOnZ[i];
             //        MajorPseudoSinks[i] = PseudoSinksOnZ[i];
             //    }
+        }
+    }
+    private float RemapHeight(float h, float p)
+    {
+        if (h < 0.5f)
+        {
+            // Ease-In: Pushes values < 0.5 down towards 0
+            return 0.5f * Mathf.Pow(2 * h, p);
+        }
+        else
+        {
+            // Ease-Out: Pushes values > 0.5 up towards 1
+            return 1 - 0.5f * Mathf.Pow(2 * (1 - h), p);
         }
     }
 
