@@ -58,7 +58,7 @@ public abstract class ProtoSink
         return distance;
     }
 
-    public string ToString()
+    public new string ToString()
     {
         return "Sink: " + " type: " + this.type.ToString() + " x: " + u_x + " y: " + u_y;
     }
