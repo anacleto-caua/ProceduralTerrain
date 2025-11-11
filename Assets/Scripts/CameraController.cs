@@ -27,7 +27,6 @@ public class CameraController : MonoBehaviour
 
     private bool isLookingUnlocked = false;
     #endregion Vars
-
     void Awake()
     {
         characterController = GetComponent<CharacterController>();
@@ -102,7 +101,6 @@ public class CameraController : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
-
 
     private void Update()
     {
