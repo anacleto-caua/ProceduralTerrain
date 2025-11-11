@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 public class ChunkLoader : MonoBehaviour
 {
@@ -51,11 +49,6 @@ public class ChunkLoader : MonoBehaviour
         ChunkNoise.SetSeed(seed);
     }
 
-    void Start()
-    {
-
-    }
-    
     void Update()
     {
         HandleChunkLoading();
@@ -99,7 +92,8 @@ public class ChunkLoader : MonoBehaviour
         {
             if (Vector2Int.Distance(chunk.gridPos, currentChunkPos) > chunkRenderRadius)
             {
-                // Stack a list of actions, as calling the function now would damage the foreach loop
+                // Stack a list of actions, as calling the function now would
+                // damage the foreach loop since it changes the loadedChunks List
                 UnloadCommandList.Add(() => UnloadChunk(chunk));
             }
         }
