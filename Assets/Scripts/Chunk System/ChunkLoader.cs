@@ -86,22 +86,18 @@ public class ChunkLoader : MonoBehaviour
             }
         }
 
-        List<Action> UnloadCommandList = new List<Action>();
-        // Loops at all the chunks loaded and check if they should be loaded on not
-        foreach ( Chunk chunk in loadedChunks )
-        {
-            if (Vector2Int.Distance(chunk.gridPos, currentChunkPos) > chunkRenderRadius)
-            {
-                // Stack a list of actions, as calling the function now would
-                // damage the foreach loop since it changes the loadedChunks List
-                UnloadCommandList.Add(() => UnloadChunk(chunk));
-            }
-        }
+        // Find all chunks that are too far away.
+        // .ToList() creates a new list, which is safe to iterate
+        // and doesn't affect the original loadedChunks list
+        List<Chunk> chunksToUnload = loadedChunks
+            .Where(chunk => Vector2Int.Distance(chunk.gridPos, currentChunkPos) > chunkRenderRadius)
+            .ToList();
 
-        // Unstack the actions, seems like bad code...
-        foreach (Action action in UnloadCommandList)
+        // Loop through the new and safe list and unload all chunks
+        foreach (Chunk chunk in chunksToUnload)
         {
-            action();
+            // This modifies loadedChunks
+            UnloadChunk(chunk); 
         }
     }
 
