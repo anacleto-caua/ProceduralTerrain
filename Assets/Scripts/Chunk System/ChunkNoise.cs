@@ -35,7 +35,7 @@ public class ChunkNoise : FastNoiseLite
         return Instance.GetNoise(x, y);
     }
 
-    public static void SetSeed(int seed)
+    public new static void SetSeed(int seed)
     {
         Instance.SetSeed(seed);
     }
