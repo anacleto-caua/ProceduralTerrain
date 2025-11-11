@@ -8,6 +8,7 @@ public class CameraController : MonoBehaviour
 
     public Camera mainCamera;
 
+    private CameraInputActions inputActions;
     CameraInputActions.CameraActions cameraActions;
 
     private float cameraSpeed = 30f;
@@ -31,24 +32,7 @@ public class CameraController : MonoBehaviour
     {
         characterController = GetComponent<CharacterController>();
 
-        #region InputSetup
-        cameraActions = new CameraInputActions().Camera;
-
-        cameraActions.Move.started += context => OnMove(context);
-        cameraActions.Move.performed += context => OnMove(context);
-        cameraActions.Move.canceled += context => OnMove(context);
-
-        cameraActions.Accelerate.started += context => OnAccelerate(context);
-        cameraActions.Deaccelerate.started += context => OnDeaccelerate(context);
-
-        cameraActions.Accelerate.canceled += context => OnLeaveCamera(context);
-        cameraActions.Deaccelerate.canceled += context => OnLeaveCamera(context);
-
-        cameraActions.Look.performed += context => OnLook(context);
-        
-        cameraActions.LookingLock.started += context => OnLookingLock(context);
-        cameraActions.LookingLock.canceled += context => OnLookingLock(context);
-        #endregion InputSetup
+        inputActions = new CameraInputActions();
     }
 
     #region InputCallbacks
@@ -111,12 +95,53 @@ public class CameraController : MonoBehaviour
     #region InputSystemHandling
     void OnEnable()
     {
+        if (inputActions == null)
+        {
+            inputActions = new CameraInputActions();
+        }
+        cameraActions = inputActions.Camera;
+
+        cameraActions.Move.started += OnMove;
+        cameraActions.Move.performed += OnMove;
+        cameraActions.Move.canceled += OnMove;
+
+        cameraActions.Accelerate.started += OnAccelerate;
+        cameraActions.Deaccelerate.started += OnDeaccelerate;
+
+        cameraActions.Accelerate.canceled += OnLeaveCamera;
+        cameraActions.Deaccelerate.canceled += OnLeaveCamera;
+
+        cameraActions.Look.performed += OnLook;
+
+        cameraActions.LookingLock.started += OnLookingLock;
+        cameraActions.LookingLock.canceled += OnLookingLock;
+
         cameraActions.Enable();
     }
 
     void OnDisable()
     {
-        cameraActions.Disable();
+        // Unsubscribe from all events to prevent errors and memory leaks.
+        if (inputActions != null)
+        {
+            cameraActions.Move.started -= OnMove;
+            cameraActions.Move.performed -= OnMove;
+            cameraActions.Move.canceled -= OnMove;
+
+            cameraActions.Accelerate.started -= OnAccelerate;
+            cameraActions.Deaccelerate.started -= OnDeaccelerate;
+
+            cameraActions.Accelerate.canceled -= OnLeaveCamera;
+            cameraActions.Deaccelerate.canceled -= OnLeaveCamera;
+
+            cameraActions.Look.performed -= OnLook;
+
+            cameraActions.LookingLock.started -= OnLookingLock;
+            cameraActions.LookingLock.canceled -= OnLookingLock;
+
+            // Disable the actions
+            cameraActions.Disable();
+        }
     }
     #endregion InputSystemHandling
 }
