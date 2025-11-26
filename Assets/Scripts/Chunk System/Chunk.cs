@@ -46,6 +46,11 @@ public class Chunk : MonoBehaviour
     // This is the "steepness" factor and make slopes way more aggressive
     float slopeAggressiveness;
 
+    // STRAINER PART
+    // TEMP GLOBALS
+    int StrainerHolesCountPerAxis = 3;
+    float StrainerHolesDistance = 0;
+
     public void Start()
     {
         AnaLogger.Log($"Filing terrain data at chunk: {this.name}");
@@ -115,6 +120,8 @@ public class Chunk : MonoBehaviour
         this.terrain.terrainData.heightmapResolution = this.heightmapResolution;
 
         this.terrain.transform.parent = this.gameObject.transform;
+
+        this.StrainerHolesDistance = (this.chunkSize + 1) / StrainerHolesCountPerAxis;
     }
 
     private async void GenerateChunkTerrain()
@@ -127,6 +134,7 @@ public class Chunk : MonoBehaviour
             }
         });
 
+        /* SINKS
         await Task.Run(() => {
             using (AnaLogger.BeginBatch())
             {
@@ -147,6 +155,7 @@ public class Chunk : MonoBehaviour
                 FindFlowBetweenWorldSinks();
             }
         });
+        */
 
         SetTerrainHeights();
     }
@@ -160,7 +169,8 @@ public class Chunk : MonoBehaviour
     private void FillTerrainHeightData()
     {
         AnaLogger.Log($"Began filling heightmap at chunk x: {this.gridPos.x} y: {this.gridPos.y}");
-
+        
+        /* LIVE EDGE
         float height_SW = RemapHeight(LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y - .5f), slopeAggressiveness); // South-West Corner
         float height_SE = RemapHeight(LiveEdgeNoise.GetNoise(this.gridPos.x + .5f, this.gridPos.y - .5f), slopeAggressiveness); // South-East Corner
         float height_NW = RemapHeight(LiveEdgeNoise.GetNoise(this.gridPos.x - .5f, this.gridPos.y + .5f), slopeAggressiveness); // North-West Corner
@@ -169,7 +179,7 @@ public class Chunk : MonoBehaviour
         AnaLogger.Log($"Corner Heights: SW:{height_SW:F3}, SE:{height_SE:F3}, NW:{height_NW:F3}, NE:{height_NE:F3}");
 
         float maxIndex = this.heightmapResolution - 1;
-
+        */
         // The universal coordinates for the ChunkNoise function
         int u_x, u_y;
 
@@ -178,6 +188,7 @@ public class Chunk : MonoBehaviour
         {
             u_x = (this.gridPos.x * this.heightmapResolution) + i - this.gridPos.x;
 
+            /* LIVE EDGE
             // Normalized interpolation factor for i(t_x)
             // This is a value from 0.0 (at West edge, i=0) to 1.0 (at East edge, i=maxIndex)
             float t_i = (float)i / maxIndex;
@@ -186,24 +197,28 @@ public class Chunk : MonoBehaviour
             float heightSouthEdge = Mathf.Lerp(height_SW, height_SE, t_i);
             // Find the point on the North edge (interpolating between NW and NE)
             float heightNorthEdge = Mathf.Lerp(height_NW, height_NE, t_i);
-
+            */
             for (int j = 0; j < this.heightmapResolution; j++)
             {
                 u_y = (this.gridPos.y * this.heightmapResolution) + j - this.gridPos.y;
 
+                /* LIVE EDGE
                 // Normalized interpolation factor for j (t_y)
                 // This is a value from 0.0 (at South edge, j=0) to 1.0 (at North edge, j=maxIndex)
                 float t_j = (float)j / maxIndex;
 
                 // Vertical bilinear interpolation
                 float finalSlopeValue = Mathf.Lerp(heightSouthEdge, heightNorthEdge, t_j);
+                */
+                //LIVE EDGE: float actualHeightmap = (chunkNoiseValue * noiseWeight) + (finalSlopeValue * slopeWeight);
 
                 // Get the Chunk Noise
-                float chunkNoiseValue = ChunkNoise.GetNoise(u_x, u_y);
+                float chunkNoiseValue = ChunkNoise.GetNoise(u_x, u_y) * LiveEdgeNoise.GetNoise(u_x, u_y);
 
                 // Calculate the height value
-                float actualHeightmap = (chunkNoiseValue * noiseWeight) + (finalSlopeValue * slopeWeight);
+                float actualHeightmap = (chunkNoiseValue * terrainAmplitude);
 
+                // Fallback warning(shouldn't be reach)
                 if(actualHeightmap > 1)
                 {
                     Debug.LogError("HEIGHMAP BIGGER THAN 1, RECONSIDER CODE");
@@ -216,9 +231,9 @@ public class Chunk : MonoBehaviour
                 // Logging
                 AnaLogger.Log(
                         $"Chunk[{this.gridPos.x,2},{this.gridPos.y,2}] Coords[i:{i,3},j:{j,3}] (u:{u_x,4},{u_y,4})" +
-                        $" | t_i: {t_i:F3}, t_j: {t_j:F3}" +
-                        $" | S_Edge: {heightSouthEdge:F3}, N_Edge: {heightNorthEdge:F3}" +
-                        $" | FinalSlope: {finalSlopeValue,6:F3}" +
+                        //$" | t_i: {t_i:F3}, t_j: {t_j:F3}" +
+                        //$" | S_Edge: {heightSouthEdge:F3}, N_Edge: {heightNorthEdge:F3}" +
+                        //$" | FinalSlope: {finalSlopeValue,6:F3}" +
                         $" | FinalNoise: {chunkNoiseValue,6:F3}" +
                         $" | FinalHeight: {actualHeightmap,6:F3}"
                     );
@@ -226,6 +241,7 @@ public class Chunk : MonoBehaviour
                 // Actually fills in the heightmap matrix
                 heightmap[j, i] = actualHeightmap;
 
+                /* SINKS
                 if (
                     (j == 0) || 
                     (heightmap[j, i] < heightmap[PseudoSinksOnZ[i].j, PseudoSinksOnZ[i].i])
@@ -241,6 +257,7 @@ public class Chunk : MonoBehaviour
                 {
                     PseudoSinksOnX[j] = new(u_x, u_y, i, j, SinkType.SinkOnX);
                 }
+                */
             }
 
             //    // --------- NEEDS REWORK ---------
@@ -255,6 +272,7 @@ public class Chunk : MonoBehaviour
             //    }
         }
     }
+
     private float RemapHeight(float h, float p)
     {
         // TODO: Fiddle with this magic value
@@ -381,11 +399,6 @@ public class Chunk : MonoBehaviour
         }
     }
 
-    public void GetNoise(int u_x, int u_y)
-    {
-
-    }
-        
     public void Load()
     {
         this.gameObject.SetActive(true);
@@ -407,7 +420,24 @@ public class Chunk : MonoBehaviour
 
         HandlePosRefGizmos();
         HandlePointGizmos();
-        HandleSinkGizmos();
+        //HandleSinkGizmos();
+
+        Gizmos.color = Color.purple;
+        float terrainActualHeight = terrain.terrainData.size.y;
+        float gizmoBonusHeight = 0f;
+        float debugSphereScale = 1f;
+        for (int i = 0; i < this.StrainerHolesCountPerAxis; i++)
+        {
+            for (int j = 0; j < this.StrainerHolesCountPerAxis; j++)
+            {
+                Vector3 strainHolePos = this.basePos;
+                strainHolePos.x += (i + .5f) * this.StrainerHolesDistance;
+                strainHolePos.z += (j + .5f) * this.StrainerHolesDistance;
+                strainHolePos.y = (terrainActualHeight * terrainAmplitude) + gizmoBonusHeight;
+
+                Gizmos.DrawSphere(strainHolePos, debugSphereScale);
+            }
+        }
     }
 
     public void HandlePosRefGizmos()
@@ -486,7 +516,7 @@ public class Chunk : MonoBehaviour
                 Gizmos.DrawCube(vertexPos, Vector3.one * cubeScale);
 
                 // Wire Cubes are barely visible on the current setup, although more efficient, may use it later
-                //Gizmos.DrawWireCube(vertexPos, Vector3.one * cubeScale);
+                //Gizmos.DrawWireCube(strainHolePos, Vector3.one * cubeScale);
             }
         }
     }
