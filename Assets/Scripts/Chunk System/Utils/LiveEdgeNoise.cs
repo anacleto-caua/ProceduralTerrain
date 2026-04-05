@@ -1,3 +1,5 @@
+using UnityEngine;
+
 public class LiveEdgeNoise : FastNoiseLite
 {
     private static LiveEdgeNoise _instance;
@@ -34,6 +36,12 @@ public class LiveEdgeNoise : FastNoiseLite
     {
         // Noise goes from 1 to -1 Unity's terrain need it between 0 and 1
         return (Instance.GetNoise(x, y) + 1) / 2f;
+    }
+
+    public static new float GetNoise(UnityEngine.Vector2 pos)
+    {
+        // Noise goes from 1 to -1 Unity's terrain need it between 0 and 1
+        return (Instance.GetNoise(pos.x, pos.y) + 1) / 2f;
     }
 
     public static new void SetSeed(int seed)

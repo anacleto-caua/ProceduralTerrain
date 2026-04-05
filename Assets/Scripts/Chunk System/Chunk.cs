@@ -93,18 +93,15 @@ public class Chunk : MonoBehaviour
 
         this.spaceBetweenGridVertexes = (float)((float)(this.chunkSize) / (float)(this.heightmapResolution));
 
-        // Some functions to reduce bloat
-        CreateTerrainInstance();
-        
         // Gives a unique name so we now what's this about
         this.gameObject.name = "Chunk|" + pos.x + "|" + pos.y + "|";
 
-        // Sinks ident variables
-        PseudoSinksOnX = new PseudoSink[this.heightmapResolution];
-        PseudoSinksOnZ = new PseudoSink[this.heightmapResolution];
-        PseudoSinksMap = new PseudoSink[this.heightmapResolution, this.heightmapResolution];
-        MajorPseudoSinks = new PseudoSink[this.heightmapResolution];
-        WorldSinks = new List<Sink>();
+        //// Sinks ident variables
+        //PseudoSinksOnX = new PseudoSink[this.heightmapResolution];
+        //PseudoSinksOnZ = new PseudoSink[this.heightmapResolution];
+        //PseudoSinksMap = new PseudoSink[this.heightmapResolution, this.heightmapResolution];
+        //MajorPseudoSinks = new PseudoSink[this.heightmapResolution];
+        //WorldSinks = new List<Sink>();
     }
 
     private void CreateTerrainInstance()
@@ -127,6 +124,24 @@ public class Chunk : MonoBehaviour
     private async void GenerateChunkTerrain()
     {
         await Task.Run(() => {
+            using (AnaLogger.BeginBatch())
+            {
+                //GenerateChunkNetwork();
+            }
+        });
+
+        return;
+        await Task.Run(() => {
+            using (AnaLogger.BeginBatch())
+            {
+                CreateTerrainInstance();
+            }
+        });
+
+
+
+
+        await Task.Run(() => {
             // This batch is tied to *this specific worker thread*
             using (AnaLogger.BeginBatch())
             {
@@ -134,7 +149,7 @@ public class Chunk : MonoBehaviour
             }
         });
 
-        /* SINKS
+    /* SINKS
         await Task.Run(() => {
             using (AnaLogger.BeginBatch())
             {
@@ -158,6 +173,27 @@ public class Chunk : MonoBehaviour
         */
 
         SetTerrainHeights();
+    }
+
+    private void GenerateChunkNetwork()
+    {
+        float gizmoBonusHeight = 0f;
+        float debugSphereScale = 5f;
+        for (int i = 0; i < this.StrainerHolesCountPerAxis; i++)
+        {
+            for (int j = 0; j < this.StrainerHolesCountPerAxis; j++)
+            {
+                Vector3 strainHolePos = this.basePos;
+                strainHolePos.x += (i + .5f) * this.StrainerHolesDistance;
+                strainHolePos.z += (j + .5f) * this.StrainerHolesDistance;
+                strainHolePos.y = gizmoBonusHeight;
+
+                Gizmos.DrawSphere(strainHolePos, debugSphereScale);
+                GameObject mySphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                mySphere.transform.position = strainHolePos;
+                mySphere.transform.localScale = Vector3.one * debugSphereScale;
+            }
+        }
     }
 
     private void SetTerrainHeights()
@@ -213,7 +249,7 @@ public class Chunk : MonoBehaviour
                 //LIVE EDGE: float actualHeightmap = (chunkNoiseValue * noiseWeight) + (finalSlopeValue * slopeWeight);
 
                 // Get the Chunk Noise
-                float chunkNoiseValue = ChunkNoise.GetNoise(u_x, u_y) * LiveEdgeNoise.GetNoise(u_x, u_y);
+                float chunkNoiseValue = ChunkNoise.GetNoise(u_x, u_y);
 
                 // Calculate the height value
                 float actualHeightmap = (chunkNoiseValue * terrainAmplitude);
@@ -422,7 +458,6 @@ public class Chunk : MonoBehaviour
         HandlePointGizmos();
         //HandleSinkGizmos();
 
-        Gizmos.color = Color.purple;
         float terrainActualHeight = terrain.terrainData.size.y;
         float gizmoBonusHeight = 0f;
         float debugSphereScale = 1f;
@@ -435,7 +470,39 @@ public class Chunk : MonoBehaviour
                 strainHolePos.z += (j + .5f) * this.StrainerHolesDistance;
                 strainHolePos.y = (terrainActualHeight * terrainAmplitude) + gizmoBonusHeight;
 
+                Gizmos.color = Color.purple;
                 Gizmos.DrawSphere(strainHolePos, debugSphereScale);
+
+                Vector2 thisP = new(i, j);
+
+                float thrshld = .4f;
+
+                Vector2[] checkPositions = new Vector2[]
+                {
+                    new Vector2(i + .5f, j), // North
+                    new Vector2(i - .5f, j), // South
+                    new Vector2(i, j + .5f), // West
+                    new Vector2(i, j - .5f)  // East
+                };
+
+                foreach (Vector2 targetPos in checkPositions)
+                {
+                    // Use targetPos exactly how you used 'north', 'south', etc.
+                    //if (LiveEdgeNoise.GetNoise(targetPos) < thrshld)
+                    if (true)
+                    {
+                        Vector3 strainHoleTgPos = this.basePos;
+
+                        // Using targetPos.x/y to drive the calculation
+                        strainHoleTgPos.x += (targetPos.x + 1f) * this.StrainerHolesDistance;
+                        strainHoleTgPos.z += (targetPos.y + 1f) * this.StrainerHolesDistance;
+                        strainHoleTgPos.y = (terrainActualHeight * terrainAmplitude) + gizmoBonusHeight;
+
+                        Gizmos.color = Color.red;
+                        Debug.DrawLine(strainHolePos, strainHoleTgPos, Color.red);
+                    }
+                }
+
             }
         }
     }
